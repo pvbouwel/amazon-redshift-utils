@@ -5,7 +5,7 @@ Columns:
 database: database name
 table_id: table oid
 tablename: Schema qualified table name
-columns: encoded columns / total columns
+columns: encoded columns / unencoded columns
 pk: Y if PK constraint exists, otherwise N
 fk: Y if FK constraint exists, otherwise N
 max_varchar: Size of the largest column that uses a VARCHAR data type. 
@@ -108,7 +108,7 @@ pcon AS
 colenc AS
 (
   SELECT attrelid,
-         SUM(CASE WHEN a.attencodingtype = 0 THEN 0 ELSE 1 END) AS encoded_cols,
+         SUM(CASE WHEN substring(format_encoding(a.attencodingtype),1,4) = 'none' THEN 0 ELSE 1 END) AS encoded_cols,
          COUNT(*) AS cols
   FROM pg_attribute a
   WHERE a.attrelid IN (SELECT oid FROM tbl_ids)
