@@ -1,0 +1,27 @@
+{
+  "unloadSource": {
+    "clusterEndpoint": "my-cluster.d7bdmd4addft.eu-west-1.redshift.amazonaws.com",
+    "clusterPort": 5439,
+    "connectPwd": "AQICAHjX2Xlvwj8LO0wam2pvdxf/icSW7G30w7SjtJA5higfdwG7KjYEDZ+jXA6QTjJY9PlDAAAAZTBjBgkqhkiG9w0BBwagVjBUAgEAME8GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMx+xGf9Ys58uvtfl5AgEQgCILmeoTmmo+Sh1cFgjyqNrySDfQgPYsEYjDTe6OHT5Z0eop",
+    "connectUser": "master",
+    "db": "mydb",
+    "schemaName": "public",
+    "tableName": "export_table"
+  },
+  "s3Staging": {
+    "aws_iam_role": "aws iam role which is assigned to Redshift and has access to the s3 bucket",
+    "path": "s3://support-peter-ie/tests/",
+    "deleteOnSuccess": "True",
+    "region": "us-east-1"
+  },
+  "copyTarget": {
+    "clusterEndpoint": "my-other-cluster.d7bdmd4addft.eu-west-1.redshift.amazonaws.com",
+    "clusterPort": 5439,
+    "connectPwd": "AQICAHjX2Xlvwj8LO0wam2pvdxf/icSW7G30w7SjtJA5higfdwG7KjYEDZ+jXA6QTjJY9PlDAAAAZTBjBgkqhkiG9w0BBwagVjBUAgEAME8GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMx+xGf9Ys58uvtfl5AgEQgCILmeoTmmo+Sh1cFgjyqNrySDfQgPYsEYjDTe6OHT5Z0eop",
+    "connectUser": "master",
+    "db": "mydb",
+    "schemaName": "public",
+    "tableName": "import_table"
+  }
+}
+        
