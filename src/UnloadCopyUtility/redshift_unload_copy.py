@@ -19,17 +19,16 @@ python redshift-unload-copy.py <config file> <region>
 * permissions and limitations under the License.
 """
 
-import os
 import sys
 import pg
 import json
 import base64
-import boto
-from boto import kms, s3
+import boto3
+import re
+import logging
 import datetime
 
 kmsClient = None
-s3Client = None
 nowString = None
 config = None
 region = None
@@ -86,7 +85,7 @@ def copy_data(conn, s3_access_credentials, master_symmetric_key, dataStagingPath
 
 
 def decrypt(b64EncodedValue):
-    return kmsClient.decrypt(base64.b64decode(b64EncodedValue))['Plaintext']
+    return kmsClient.decrypt(CiphertextBlob=base64.b64decode(b64EncodedValue))['Plaintext']
 
 
 def tokeniseS3Path(path):
@@ -97,35 +96,89 @@ def tokeniseS3Path(path):
     return (bucketName, prefix)
 
 
-def s3Delete(stagingPath):
-    print("Cleaning up S3 Data Staging Location %s" % (stagingPath))
-    s3Info = tokeniseS3Path(stagingPath)
-
-    stagingBucket = s3Client.get_bucket(s3Info[0])
-
-    for key in stagingBucket.list(s3Info[1]):
-        stagingBucket.delete_key(key)
-
-
 def getConfig(path):
+    """
+    This is only in place to allow regression testing to show that AWS interactions are still working
+    :param path:
+    :return:
+    """
     # datetime alias for operations
-    global nowString
-    nowString = "{:%Y-%m-%d_%H-%M-%S}".format(datetime.datetime.now())
-
     global config
 
     if path.startswith("s3://"):
         # download the configuration from s3
-        s3Info = tokeniseS3Path(path)
+        s3_client = S3Client(region)
 
-        bucket = s3Client.get_bucket(s3Info[0])
-        key = bucket.get_key(s3Info[1])
-
-        configContents = key.get_contents_as_string()
-        config = json.loads(configContents)
+        config = s3_client.get_json_config_as_dict(path)
     else:
         with open(path) as f:
             config = json.load(f)
+
+
+def get_cluster_endpoint_regex():
+    """
+    A cluster endpoint is comprised of letters, digits, or hyphens
+
+    From http://docs.aws.amazon.com/redshift/latest/mgmt/managing-clusters-console.html
+        They must contain from 1 to 63 alphanumeric characters or hyphens.
+        Alphabetic characters must be lowercase.
+        The first character must be a letter.
+        They cannot end with a hyphen or contain two consecutive hyphens.
+        They must be unique for all clusters within an AWS account.
+    :return:
+    """
+    cluster_endpoint_regex_parts = [
+        {
+            'name': 'cluster_identifier',
+            'pattern': '[a-z][a-z0-9-]*'
+        },
+        {
+            'pattern': r'\.'
+        },
+        {
+            'name': 'customer_hash',
+            'pattern': r'[0-9a-z]+'
+        },
+        {
+            'pattern': r'\.'
+        },
+        {
+            'name': 'region',
+            'pattern': '[a-z]+-[a-z]+-[0-9]+'
+        },
+        {
+            'pattern': r'\.redshift\.amazonaws\.com$'
+        }
+    ]
+    pattern = ''
+    for element in cluster_endpoint_regex_parts:
+        if 'name' in element.keys():
+            pattern += '(?P<' + element['name'] + '>'
+        pattern += element['pattern']
+        if 'name' in element.keys():
+            pattern += ')'
+    return re.compile(pattern)
+
+
+def get_element_from_cluster_endpoint(clusterEndpoint, element):
+    match_result = get_cluster_endpoint_regex().match(clusterEndpoint.lower())
+    if match_result is not None:
+        return match_result.groupdict()[element]
+    else:
+        logging.fatal('Could not extract region from cluster endpoint {ce}'.format(ce=clusterEndpoint))
+
+
+def get_region_from_cluster_endpoint(clusterEndpoint):
+    return get_element_from_cluster_endpoint(clusterEndpoint, 'region')
+
+
+def get_cluster_identifier_from_cluster_endpoint(clusterEndpoint):
+    return get_element_from_cluster_endpoint(clusterEndpoint, 'cluster_identifier')
+
+
+def getClusterPassword(clusterEndpoint, userName, autoCreate=False, dbGroups=None):
+    logging.debug("Try getting DB credentials for {u}@{c}".format(u=userName, c=clusterEndpoint))
+    redshiftClient = boto3.client('redshift', region_name=get_region_from_cluster_endpoint(clusterEndpoint))
 
 
 def usage():
@@ -141,6 +194,62 @@ def usage():
     sys.exit(-1)
 
 
+class S3Client:
+    def __init__(self, region_name):
+        self.s3_client = boto3.client('s3', region_name=region)
+
+    def get_json_config_as_dict(self, s3_url):
+        # datetime alias for operations
+        global nowString
+        if nowString is None:
+            nowString = "{:%Y-%m-%d_%H-%M-%S}".format(datetime.datetime.now())
+
+        if s3_url.startswith("s3://"):
+            # download the configuration from s3
+            (config_bucket_name, config_key) = tokeniseS3Path(s3_url)
+
+            response = self.s3_client.get_object(Bucket=config_bucket_name,
+                                           Key=config_key)  # Throws NoSuchKey exception if no config
+            configContents = response['Body'].read(1024 * 1024).decode('utf-8')  # Read maximum 1MB
+
+            config = json.loads(configContents)
+        else:
+            with open(s3_url) as f:
+                config = json.load(f)
+        return config
+
+    def delete_list_of_keys_from_bucket(self, keys_to_delete, bucket_name):
+        """
+        This is a wrapper around delete_objects for the boto3 S3 client.
+        This call only allows a maximum of 1000 keys otherwise an Exception will be thrown
+        :param keys_to_delete:
+        :param bucket_name:
+        :return:
+        """
+        if len(keys_to_delete) > 1000:
+            raise Exception('Batch delete only supports a maximum of 1000 keys at a time')
+
+        object_list = []
+        for key in keys_to_delete:
+            object_list.append({'Key': key})
+        self.s3_client.delete_objects(Bucket=bucket_name, Delete={'Objects': object_list})
+
+    def delete_s3_prefix(self, staging_path):
+        print("Cleaning up S3 Data Staging Location %s" % staging_path)
+        (stagingBucket, stagingPrefix) = tokeniseS3Path(staging_path)
+
+        objects = self.s3_client.list_objects_v2(Bucket=stagingBucket, Prefix=stagingPrefix)
+        if objects['KeyCount'] > 0:
+            keys_to_delete = []
+            key_number = 1
+            for s3_object in objects['Contents']:
+                if (key_number % 1000) == 0:
+                    self.delete_list_of_keys_from_bucket(keys_to_delete, stagingBucket)
+                    keys_to_delete = []
+                keys_to_delete.append(s3_object['Key'])
+            self.delete_list_of_keys_from_bucket(keys_to_delete, stagingBucket)
+
+
 def main(args):
     if len(args) != 2:
         usage
@@ -148,14 +257,14 @@ def main(args):
     global region
     region = args[2]
 
-    global s3Client
-    s3Client = boto.s3.connect_to_region(region)
+    s3Client = S3Client(region)
 
     global kmsClient
-    kmsClient = boto.kms.connect_to_region(region)
+    kmsClient = boto3.client('kms', region_name=region)
 
     # load the configuration
-    getConfig(args[1])
+    global config
+    config = s3Client.get_json_config_as_dict(args[1])
 
     # parse options
     dataStagingPath = "%s/%s/" % (config['s3Staging']['path'].rstrip("/"), nowString)
@@ -204,7 +313,7 @@ def main(args):
     dest_user = destConfig['connectUser']
 
     # create a new data key for the unload operation
-    dataKey = kmsClient.generate_data_key(encryptionKeyID, key_spec="AES_256")
+    dataKey = kmsClient.generate_data_key(KeyId=encryptionKeyID, KeySpec="AES_256")
 
     master_symmetric_key = base64.b64encode(dataKey['Plaintext'])
 
@@ -228,7 +337,7 @@ def main(args):
     dest_conn.close()
 
     if 'true' == deleteOnSuccess.lower():
-        s3Delete(dataStagingPath)
+        s3Client.delete_s3_prefix(dataStagingPath)
 
 
 if __name__ == "__main__":
