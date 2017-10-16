@@ -2,7 +2,7 @@
 """
 Unittests can only be ran in python3 due to dependencies
 
-* Copyright 2014, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+* Copyright 2017, Amazon.com, Inc. or its affiliates. All Rights Reserved.
 *
 * Licensed under the Amazon Software License (the "License").
 * You may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@ Unittests can only be ran in python3 due to dependencies
 * permissions and limitations under the License.
 """
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, call
 import redshift_unload_copy
-from copy import deepcopy
 import boto3
 
 
 class TestRedshiftUnloadCopy(TestCase):
-    test_config = 's3://support-peter-ie/config_test.json'
+    s3_test_config = 's3://support-peter-ie/config_test.json'
     test_local_config = 'example/config_test.json'
     bucket_name = 'support-peter-ie'
     s3_path_prefix = 'tests'
@@ -41,40 +40,76 @@ class TestRedshiftUnloadCopy(TestCase):
         Mostly to test S3 boto to boto3 change
         :return:
         """
-        redshift_unload_copy.main(['fake_app_name','example/config_test.json', 'us-east-1'])
-        config = None
-        redshift_unload_copy.getConfig(self.test_config)
-        s3_config = deepcopy(config)
-        redshift_unload_copy.getConfig(self.test_local_config)
-        self.assertEqual(s3_config, config)
+        s3_helper = redshift_unload_copy.S3Helper('eu-west-1')
+        s3_config = redshift_unload_copy.ConfigHelper(self.s3_test_config, s3_helper).config
+        local_config = redshift_unload_copy.ConfigHelper(self.test_local_config).config
+        self.assertEqual(s3_config, local_config)
 
     def test_decoding_to_verify_kms_client(self):
-        redshift_unload_copy.main(['fake_app_name','example/config_test.json', 'us-east-1'])
+        kms_helper = redshift_unload_copy.KMSHelper('us-east-1')
         encoded = "AQICAHjX2Xlvwj8LO0wam2pvdxf/icSW7G30w7SjtJA5higfdwG7KjYEDZ+jXA6QTjJY9PlDAAAAZTBjBgkqhkiG9w0BBwagVjBUAgEAME8GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMx+xGf9Ys58uvtfl5AgEQgCILmeoTmmo+Sh1cFgjyqNrySDfQgPYsEYjDTe6OHT5Z0eop"
-        decoded_kms = redshift_unload_copy.decrypt(encoded)
+        decoded_kms = kms_helper.decrypt(encoded)
         self.assertEqual("testing".encode('utf-8'), decoded_kms)
 
-    @staticmethod
-    def unload_data_mock(src_conn, s3_access_credentials, master_symmetric_key, dataStagingPath,
-                         src_schema, src_table):
-        s3_parts = redshift_unload_copy.tokeniseS3Path(dataStagingPath)
-        s3_client = boto3.client('s3', 'eu-west-1')
-        response = s3_client.put_object(Body='content1'.encode('utf-8'),
-                                        Bucket=s3_parts[0],
-                                        Key=s3_parts[1] + 'test_file_1')
-        response = s3_client.put_object(Body='content2'.encode('utf-8'),
-                                        Bucket=s3_parts[0],
-                                        Key=s3_parts[1] + 'test_file_2')
+    class TableResourceMock:
+        def __init__(self, rs_cluster, schema, table):
+            self._cluster = rs_cluster
+            self._schema = schema
+            self._table = table
+            self.dataStagingPath = None
+
+        def unload_data(self, s3_details):
+            s3_parts = redshift_unload_copy.S3Helper.tokenise_S3_Path(s3_details.dataStagingPath)
+            s3_client = boto3.client('s3', 'eu-west-1')
+            s3_client.put_object(Body='content1'.encode('utf-8'),
+                                 Bucket=s3_parts[0],
+                                 Key=s3_parts[1] + 'test_file_1')
+            s3_client.put_object(Body='content2'.encode('utf-8'),
+                                 Bucket=s3_parts[0],
+                                 Key=s3_parts[1] + 'test_file_2')
+            self.dataStagingPath = s3_details.dataStagingPath
+
+        def copy_data(self, s3_details):
+            pass
 
     def test_staging_area_should_be_cleaned_up_when_delete_on_success(self):
         s3_client = boto3.client('s3', 'eu-west-1')
-        mock_unload = MagicMock(side_effect=TestRedshiftUnloadCopy.unload_data_mock,
-                                                     return_value=MagicMock())
-        redshift_unload_copy.unload_data = mock_unload
-        redshift_unload_copy.main(['fake_app_name','example/config_test.json', 'us-east-1'])
-        full_s3_path = mock_unload.call_args[0][3]
+        with patch('redshift_unload_copy.TableResource',
+                   new=TestRedshiftUnloadCopy.TableResourceMock) as unload_mock:
+                uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
+                full_s3_path = uct.s3_details.dataStagingPath
         prefix = '/'.join(full_s3_path.split('/')[3:])
         objects = s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
         self.assertEqual(objects['KeyCount'], 0)
+
+    def test_cluster_commands_for_test_config(self):
+        kms_mock = MagicMock(return_value='Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0=')
+        execute_query_mock = MagicMock()
+        redshift_unload_copy.KMSHelper.generate_base64_encoded_data_key = kms_mock
+        redshift_unload_copy.RedshiftCluster._conn_to_rs = MagicMock()
+        redshift_unload_copy.RedshiftCluster.execute_query = execute_query_mock
+        redshift_unload_copy.RedshiftCluster._disconnect_from_rs = MagicMock()
+
+        redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
+
+        unload_command = """unload ('SELECT * FROM public.export_table')
+                     to 's3://support-peter-ie/tests/None/' credentials 
+                     '"aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
+                     manifest
+                     encrypted
+                     gzip
+                     delimiter '^' addquotes escape allowoverwrite
+REGION 'us-east-1'"""
+
+        copy_command = """copy public.import_table
+                   from 's3://support-peter-ie/tests/None/manifest' credentials 
+                   '"aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
+                   manifest 
+                   encrypted
+                   gzip
+                   delimiter '^' removequotes escape
+REGION 'us-east-1'"""
+        calls = [call(unload_command), call(copy_command)]
+        execute_query_mock.assert_has_calls(calls)
 
 

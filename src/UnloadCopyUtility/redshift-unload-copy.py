@@ -19,12 +19,12 @@ python redshift_unload_copy.py <config file> <region>
 * permissions and limitations under the License.
 """
 import sys
-
-## This file is only in place for backwards compatibility/callability
-## It should be considered deprecated and it should not be used in new setups
-## It should only be a proxy and code should reside in redshift_unload_copy.py
-
 import redshift_unload_copy
+"""
+ This file is only in place for backwards compatibility/callability
+ It should be considered deprecated and it should not be used in new setups
+ It should only be a proxy and code should reside in redshift_unload_copy.py
+"""
 
 if __name__ == "__main__":
     redshift_unload_copy.main(sys.argv)

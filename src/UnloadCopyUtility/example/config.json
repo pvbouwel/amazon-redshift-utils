@@ -24,7 +24,10 @@
     "path": "s3://my-bucket/prefix/",
     "deleteOnSuccess": "True",
     // region to use for the S3 export
-    "region": "us-east-1"
+    "region": "us-east-1",
+    //By default KMS is used to generate a symmetric key for unloading and copying this can be disabled to use a python
+    //generated key
+    "kmsGeneratedKey": "True"
   },
   // the destination database into which we will copy data
   "copyTarget": {
