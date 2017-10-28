@@ -28,14 +28,11 @@ import re
 import logging
 import datetime
 
-nowString = None
 region = None
-bucket = None
-key = None
 
 encryptionKeyID = 'alias/RedshiftUnloadCopyUtility'
 
-options = """keepalives=1 keepalives_idle=200 keepalives_interval=200 
+options = """keepalives=1 keepalives_idle=200 keepalives_interval=200
              keepalives_count=6"""
 
 set_timeout_stmt = "set statement_timeout = 1200000"
@@ -67,23 +64,26 @@ class KMSHelper:
 
     @staticmethod
     def generate_data_key_without_kms():
-        if sys.version_info[0] == 3 and sys.version_info[1] >= 6:
+        if (sys.version_info[0] == 3 and sys.version_info[1] >= 6) or sys.version_info[0] > 3:
+            # Use new secrets module https://docs.python.org/3/library/secrets.html
             import secrets
-            return secrets.token_bytes(256 / 8)
+            return secrets.token_bytes(int(256 / 8))
         else:
             # Legacy code to generate random value
             try:
                 from Crypto import Random
             except ImportError:
                 pycrypto_explanation = """
-                For generating a secure Random sequence without KMS, pycrypto is used.
-                This does not seem to be available on your system.
-                Make sure to have it installed.
-                For example `pip install pycrypto`
+                For generating a secure Random sequence without KMS, pycrypto is used in case you use Python <3.6 .
+                This does not seem to be available on your system and therefore execution needs to be aborted.
+                In order to not use KMS in case of a Python to setup you must install the pycrypto library.
+                For example using `pip install pycrypto`
 
-                Source: https://pypi.python.org/pypi/pycrypto
+                It requires to compile code in C so there are some requirements you need to satisfy. For more info
+                check out the installation section in the source documentation at https://pypi.python.org/pypi/pycrypto
 
-                Alternatively you could use KMS by setting s3Staging -> kmsGeneratedKey to True in the config file"
+                Alternatively you could use KMS by setting s3Staging -> kmsGeneratedKey to True in the config file
+                In that case make sure to generate a key using ./createKmsKey.sh <region-short-name>
                 """
                 logging.fatal(pycrypto_explanation)
                 sys.exit(-5)
@@ -105,37 +105,39 @@ class TableResourceFactory:
         return TableResourceFactory.get_table_resource_from_dict(cluster_dict, kms_region)
 
     @staticmethod
-    def get_table_resource_from_dict(cluster_dict, kms_region):
+    def get_cluster_from_cluster_dict(cluster_dict, kms_region):
         cluster = RedshiftCluster(cluster_dict['clusterEndpoint'])
-        cluster.port = cluster_dict['clusterPort']
-        cluster.user = cluster_dict['connectUser']
-        cluster.host = cluster_dict['clusterEndpoint']
-        cluster.db = cluster_dict['db']
+        cluster.set_port(cluster_dict['clusterPort'])
+        cluster.set_user(cluster_dict['connectUser'])
+        cluster.set_host(cluster_dict['clusterEndpoint'])
+        cluster.set_db(cluster_dict['db'])
         if 'connectPwd' in cluster_dict:
             if kms_region is None:
                 kms_region = cluster.get_region_name()
             kms_helper = KMSHelper(kms_region)
-            cluster.password = kms_helper.decrypt(cluster_dict['connectPwd'])
+            cluster.set_password(kms_helper.decrypt(cluster_dict['connectPwd']))
 
-        cluster.user_auto_create = False
+        cluster.set_user_auto_create(False)
         if 'userAutoCreate' in cluster_dict \
                 and cluster_dict['userAutoCreate'].lower() == 'true':
-            cluster.user_auto_create = True
+            cluster.set_user_auto_create(True)
 
         cluster.user_db_groups = []
         if 'userDbGroups' in cluster_dict:
-            cluster.user_db_groups = cluster_dict['userDbGroups']
+            cluster.set_user_db_groups(cluster_dict['userDbGroups'])
+        return cluster
 
-        table_resource = TableResource(cluster,
-                                       cluster_dict['schemaName'],
-                                       cluster_dict['tableName'])
+    @staticmethod
+    def get_table_resource_from_dict(cluster_dict, kms_region):
+        cluster = TableResourceFactory.get_cluster_from_cluster_dict(cluster_dict, kms_region)
+        table_resource = TableResource(cluster, cluster_dict['schemaName'], cluster_dict['tableName'])
         return table_resource
 
 
 class TableResource:
     commands = {}
     unload_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
-                     to '{dataStagingPath}' credentials 
+                     to '{dataStagingPath}{schema_name}.{table_name}.' credentials 
                      '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                      manifest
                      encrypted
@@ -144,12 +146,12 @@ class TableResource:
     commands['unload'] = unload_stmt
 
     copy_stmt = """copy {schema_name}.{table_name}
-                   from '{dataStagingPath}manifest' credentials 
+                   from '{dataStagingPath}{schema_name}.{table_name}.manifest' credentials 
                    '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                    manifest 
                    encrypted
                    gzip
-                   delimiter '^' removequotes escape"""
+                   delimiter '^' removequotes escape compupdate off"""
     commands['copy'] = copy_stmt
 
     def get_schema(self):
@@ -158,15 +160,11 @@ class TableResource:
     def set_schema(self, schema):
         self._schema = schema
 
-    schema = property(fget=get_schema, fset=set_schema, doc='This is the schema holding the table <schema>')
-
     def get_table(self):
         return self._table
 
     def set_table(self, table):
         self._table = table
-
-    table = property(fget=get_table, fset=set_table, doc='This is the table <tableName>')
 
     def get_cluster(self):
         return self._cluster
@@ -174,22 +172,20 @@ class TableResource:
     def set_cluster(self, cluster):
         self._cluster = cluster
 
-    cluster = property(fget=get_cluster, fset=set_cluster, doc='The cluster owning this table resource')
-
     def __init__(self, rs_cluster, schema, table):
         self._cluster = rs_cluster
         self._schema = schema
         self._table = table
 
     def run_command_against_table_resource(self, command, command_parameters):
-        command_parameters['schema_name'] = self.schema
-        command_parameters['table_name'] = self.table
-        command_parameters['cluster'] = self.cluster
+        command_parameters['schema_name'] = self.get_schema()
+        command_parameters['table_name'] = self.get_table()
+        command_parameters['cluster'] = self.get_cluster()
         logging.info("Executing on {cluster} the command: {command}")
         command_to_execute = self.commands[command]
-        if 'region' in command_parameters and command_parameters['region'] is not None:
-            command_to_execute += "\nREGION '{region}'"
-        self.cluster.execute_query(command_to_execute.format_map(command_parameters))
+        if 'region' in command_parameters and command == 'copy' and command_parameters['region'] is not None:
+            command_to_execute += " REGION '{region}' "
+        self.get_cluster().execute_query(command_to_execute.format(**command_parameters))
 
     def unload_data(self, s3_details):
         unload_parameters = {'s3_access_credentials': s3_details.access_credentials,
@@ -209,15 +205,21 @@ class TableResource:
 
 class RedshiftCluster:
     def __init__(self, cluster_endpoint):
+        self._password = None
+        self._user = None
+        self._db = None
+        self._host = None
+        self._port = None
         self.cluster_endpoint = cluster_endpoint
+        self._user_auto_create = False
+        self._user_creds_expiration = datetime.datetime.now()
+        self._user_db_groups = []
 
     def get_user(self):
         return self._user
 
     def set_user(self, user):
         self._user = user
-
-    user = property(fget=get_user, fset=set_user, doc='This is the user to connect to the database <connectUser>')
 
     def get_password(self):
         if self._password is None or self.is_temporary_credential_expired():
@@ -233,7 +235,6 @@ class RedshiftCluster:
     def set_host(self, host):
         self._host = host
 
-    host = property(fget=get_host, fset=set_host, doc='Host will be the full clusterEndpoint <clusterEndpoint>')
 
     def get_port(self):
         return self._port
@@ -241,16 +242,11 @@ class RedshiftCluster:
     def set_port(self, port):
         self._port = port
 
-    port = property(fget=get_port, fset=set_port,
-                    doc='This is the port on which the cluster is listening <clusterPort>')
-
     def get_db(self):
         return self._db
 
     def set_db(self, db):
         self._db = db
-
-    db = property(fget=get_db, fset=set_db, doc='This is the database holding the table <db>')
 
     def get_user_auto_create(self):
         return self._user_auto_create
@@ -258,8 +254,6 @@ class RedshiftCluster:
     def set_user_auto_create(self, user_auto_create):
         self._user_auto_create = user_auto_create
 
-    user_auto_create = property(fget=get_user_auto_create, fset=set_user_auto_create,
-                                doc='This indicates whether a user should be auto-created <userAutoCreate>.')
 
     def get_user_db_groups(self):
         return self._user_db_groups
@@ -267,45 +261,38 @@ class RedshiftCluster:
     def set_user_db_groups(self, user_db_groups):
         self._user_db_groups = user_db_groups
 
-    user_db_groups = property(fget=get_user_db_groups, fset=set_user_db_groups,
-                              doc='This is the DB groups a user should be part of if credentials are generated <userDbGroups>')
-
     def get_user_creds_expiration(self):
         return self._user_creds_expiration
 
     def set_user_creds_expiration(self, user_creds_expiration):
         self._user_creds_expiration = user_creds_expiration
 
-    user_creds_expiration = property(fget=get_user_creds_expiration, fset=set_user_creds_expiration,
-                                     doc='This is the expiration datetime from the temporary credentials')
-    password = property(fget=get_password, fset=set_password,
-                        doc='This is the password to connect to the database <connectPwd>')
 
     def is_temporary_credential_expired(self):
         one_minute_from_now = datetime.datetime.now() + datetime.timedelta(minutes=1)
-        if self.user_creds_expiration is None:
+        if self.get_user_creds_expiration() is None:
             return True
 
-        if one_minute_from_now > self.user_creds_expiration:
+        if one_minute_from_now > self.get_user_creds_expiration():
             return True
         return False
 
     def refresh_temporary_credentials(self):
-        logging.debug("Try getting DB credentials for {u}@{c}".format(u=self.user, c=self.host))
+        logging.debug("Try getting DB credentials for {u}@{c}".format(u=self.get_user(), c=self.get_host()))
         redshift_client = boto3.client('redshift', region_name=self.get_region_name())
         get_creds_params = {
-            'DbUser': self.user,
-            'DbName': self.db,
-            'ClusterIdentifier': self.host
+            'DbUser': self.get_user(),
+            'DbName': self.get_db(),
+            'ClusterIdentifier': self.get_cluster_identifier()
         }
-        if self.user_auto_create:
+        if self.get_user_auto_create():
             get_creds_params['AutoCreate'] = True
-        if len(self.user_db_groups) > 0:
-            get_creds_params['DbGroups'] = self.user_db_groups
+        if len(self.get_user_db_groups()) > 0:
+            get_creds_params['DbGroups'] = self.get_user_db_groups()
         response = redshift_client.get_cluster_credentials(**get_creds_params)
-        self.user = response['DbUser']
-        self.password = response['DbPassword']
-        self.user_creds_expiration = response['Expiration']
+        self.set_user(response['DbUser'])
+        self.set_password(response['DbPassword'])
+        self.set_user_creds_expiration(response['Expiration'])
 
     @staticmethod
     def get_cluster_endpoint_regex():
@@ -368,22 +355,23 @@ class RedshiftCluster:
 
     def _conn_to_rs(self, opt=options, timeout=set_timeout_stmt):
         rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
-            host=self.host,
-            port=self.port,
-            db=self.db,
-            user=self.user,
-            password=self.password,
+            host=self.get_host(),
+            port=self.get_port(),
+            db=self.get_db(),
+            password=self.get_password(), # Very important to first fetch the password because temporary password updates user!
+            user=self.get_user(),
             opt=opt)
-        print("Connecting to {host}:{port}:{db} as {user}".format(host=self.host,
-                                                                  port=self.port,
-                                                                  db=self.db,
-                                                                  user=self.user))
+        print("Connecting to {host}:{port}:{db} as {user}".format(host=self.get_host(),
+                                                                  port=self.get_port(),
+                                                                  db=self.get_db(),
+                                                                  user=self.get_user()))
         rs_conn = pg.connect(dbname=rs_conn_string)
         self._conn = rs_conn
 
     def execute_query(self, command, opt=options, timeout=set_timeout_stmt):
         self._conn_to_rs(opt=options, timeout=set_timeout_stmt)
         self._conn.query(timeout)
+        print(command)
         self._conn.query(command)
         self._disconnect_from_rs()
 
@@ -398,11 +386,6 @@ class S3Helper:
         self.config = None
 
     def get_json_config_as_dict(self, s3_url):
-        # datetime alias for operations
-        global nowString
-        if nowString is None:
-            nowString = "{:%Y-%m-%d_%H-%M-%S}".format(datetime.datetime.now())
-
         if s3_url.startswith("s3://"):
             # download the configuration from s3
             (config_bucket_name, config_key) = S3Helper.tokenise_S3_Path(s3_url)
@@ -488,7 +471,7 @@ class S3AccessCredentialsRole:
         self.aws_iam_role = aws_iam_role
 
     def __str__(self):
-        return '"aws_iam_role={role}'.format(role=self.aws_iam_role)
+        return 'aws_iam_role={role}'.format(role=self.aws_iam_role)
 
 
 class S3Details:
@@ -522,7 +505,9 @@ class S3Details:
                 self.deleteOnSuccess = False
 
             if 'path' in s3_staging_conf:
-                self.dataStagingPath = "%s/%s/" % (s3_staging_conf['path'].rstrip("/"), nowString)
+                # datetime alias for operations
+                self.nowString = "{:%Y-%m-%d_%H-%M-%S}".format(datetime.datetime.now())
+                self.dataStagingPath = "%s/%s/" % (s3_staging_conf['path'].rstrip("/"), self.nowString)
 
             if not self.dataStagingPath or not self.dataStagingPath.startswith("s3://"):
                 raise S3Details.S3StagingPathMustStartWithS3
@@ -548,7 +533,10 @@ class S3Details:
                 self.symmetric_key = kms_helper.generate_base64_encoded_data_key(encryptionKeyID)
             else:
                 self.symmetric_key = base64.b64encode(KMSHelper.generate_data_key_without_kms())
-
+            try:
+                self.symmetric_key = self.symmetric_key.decode('utf-8')
+            except:
+                pass # if fails then already string type probably Python2
 
 class UnloadCopyTool:
     def __init__(self, config_file, region):
@@ -576,14 +564,15 @@ class UnloadCopyTool:
 
 
 def main(args):
-    if len(args) != 2:
+    if len(args) != 3:
         usage()
+    else:
+        # Legacy mode
+        global region
+        region = args[2]
+        input_config_file = args[1]
 
-    global region
-    region = args[2]
-    input_config_file = args[1]
-
-    UnloadCopyTool(input_config_file, region)
+        UnloadCopyTool(input_config_file, region)
 
 if __name__ == "__main__":
     main(sys.argv)
