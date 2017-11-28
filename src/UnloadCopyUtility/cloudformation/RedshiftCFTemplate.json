@@ -63,6 +63,11 @@
             "Default": "global",
             "ConstraintDescription": "Must be a valid EC2 Keypair name."
         },
+        "AMIForEC2": {
+            "Description": "The ami used for the EC2 instance",
+            "Type": "String",
+            "Default": "ami-1a962263"
+        },
         "RedshiftPortNumber": {
             "Description": "The port number on which the cluster accepts incoming connections.",
             "Type": "Number",
@@ -305,7 +310,9 @@
                         ]
                     }
                 ],
-                "ImageId": "ami-1a962263",
+                "ImageId": {
+                    "Ref": "AMIForEC2"
+                },
                 "UserData": {
                     "Fn::Base64": {
                         "Fn::Join": [
@@ -319,6 +326,14 @@
                                     "Ref": "GitHubUrl"
                                 },
                                 "\n",
+                                "cd /home/ec2-user/amazon-redshift-utils\n",
+                                "git checkout pvbouwel-test-rs-unload-copy\n",
+                                "cd /home/ec2-user\n",
+                                "bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
+                                {
+                                    "Ref": "AMIForEC2"
+                                },
+                                "_py2.sh\n",
                                 "chown -R ec2-user /home/ec2-user\n"
                             ]
                         ]
@@ -649,6 +664,256 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "1db48044-3eb4-4afc-a92c-9c126cacdf9e"
+                }
+            }
+        },
+        "RedshiftAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "EC2InstanceRole"
+                    }
+                ],
+                "PolicyName": "PolicyRedshiftAccess",
+                "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "redshift:DescribeResize",
+                "redshift:DescribeLoggingStatus",
+                "redshift:GetClusterCredentials",
+                "redshift:JoinGroup",
+                "redshift:CreateClusterUser"
+            ],
+            "Resource": [
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbgroup",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterSource"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbname",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterSource"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbuser",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterSource"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "cluster",
+                            {
+                                "Ref": "RedshiftClusterSource"
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbgroup",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterTarget"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbname",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterTarget"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "dbuser",
+                            {
+                                "Fn::Join": [
+                                    "/",
+                                    [
+                                        {
+                                            "Ref": "RedshiftClusterTarget"
+                                        },
+                                        "*"
+                                    ]
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "Fn::Join": [
+                        ":",
+                        [
+                            "arn:aws:redshift",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            "cluster",
+                            {
+                                "Ref": "RedshiftClusterTarget"
+                            }
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": [
+                "redshift:DescribeHsmConfigurations",
+                "redshift:CreateTags",
+                "redshift:DescribeClusterSecurityGroups",
+                "redshift:DescribeEventSubscriptions",
+                "redshift:DescribeOrderableClusterOptions",
+                "redshift:DescribeEvents",
+                "redshift:DescribeHsmClientCertificates",
+                "redshift:DescribeTags",
+                "redshift:DescribeClusterSubnetGroups",
+                "redshift:DescribeEventCategories",
+                "redshift:DescribeReservedNodeOfferings",
+                "redshift:DescribeSnapshotCopyGrants",
+                "redshift:DescribeReservedNodes",
+                "redshift:DescribeClusterSnapshots",
+                "redshift:DescribeClusterVersions",
+                "redshift:DescribeClusters",
+                "redshift:DescribeTableRestoreStatus"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "2b389ab4-4920-49e7-b556-c0637456c136"
                 }
             }
         },
@@ -1299,6 +1564,17 @@
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
                 ]
+            },
+            "2b389ab4-4920-49e7-b556-c0637456c136": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1090,
+                    "y": 300
+                },
+                "z": 0
             }
         }
     }
