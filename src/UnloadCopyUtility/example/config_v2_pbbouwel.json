@@ -1,0 +1,20 @@
+{
+  "configVersion": 2,
+  "clusters": [
+    "WILL OMIT THIS!",
+    "redshift-vpc:eu-west-1/tickit",
+    "redshift-vpc3:eu-west-1/tickit"
+  ],
+  "s3Staging": {
+    "aws_iam_role": "arn:aws:iam::708106507592:role/redshift_s3",
+    "path": "s3://support-peter-ie/tests/",
+    "deleteOnSuccess": "True",
+    "region": "eu-west-1",
+    "kmsGeneratedKey": "False"
+  },
+  "copyJobs": [{
+    "source": "redshift-vpc:eu-west-1/tickit.public.aaa2",
+    "destination": "redshift-vpc3:eu-west-1/tickit.public.aaa2"
+  }]
+}
+        

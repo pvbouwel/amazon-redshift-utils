@@ -27,6 +27,7 @@ import boto3
 import re
 import logging
 import datetime
+from global_config import GlobalConfigParametersReader
 
 region = None
 
@@ -137,7 +138,7 @@ class TableResourceFactory:
 class TableResource:
     commands = {}
     unload_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
-                     to '{dataStagingPath}{schema_name}.{table_name}.' credentials 
+                     to '{dataStagingPath}.' credentials 
                      '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                      manifest
                      encrypted
@@ -146,7 +147,7 @@ class TableResource:
     commands['unload'] = unload_stmt
 
     copy_stmt = """copy {schema_name}.{table_name}
-                   from '{dataStagingPath}{schema_name}.{table_name}.manifest' credentials 
+                   from '{dataStagingPath}.manifest' credentials 
                    '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                    manifest 
                    encrypted
@@ -171,6 +172,9 @@ class TableResource:
 
     def set_cluster(self, cluster):
         self._cluster = cluster
+
+    def get_db(self):
+        return self._cluster.get_db()
 
     def __init__(self, rs_cluster, schema, table):
         self._cluster = rs_cluster
@@ -273,7 +277,8 @@ class RedshiftCluster:
         if self.get_user_creds_expiration() is None:
             return True
 
-        if one_minute_from_now > self.get_user_creds_expiration():
+        expiration_time = self.get_user_creds_expiration()
+        if one_minute_from_now > expiration_time:
             return True
         return False
 
@@ -420,7 +425,7 @@ class S3Helper:
 
     def delete_s3_prefix(self, s3_details):
         print("Cleaning up S3 Data Staging Location %s" % s3_details.dataStagingPath)
-        (stagingBucket, stagingPrefix) = S3Helper.tokenise_S3_Path(s3_details.dataStagingPath)
+        (stagingBucket, stagingPrefix) = S3Helper.tokenise_S3_Path(s3_details.dataStagingRoot)
 
         objects = self.s3_client.list_objects_v2(Bucket=stagingBucket, Prefix=stagingPrefix)
         if objects['KeyCount'] > 0:
@@ -477,17 +482,17 @@ class S3AccessCredentialsRole:
 class S3Details:
     class NoS3CredentialsFoundException(Exception):
         def __init__(self, *args):
-            super().__init__(*args)
+            super(S3Details.NoS3CredentialsFoundException, self).__init__(*args)
 
     class NoS3StagingInformationFoundException(Exception):
         def __init__(self, *args):
-            super().__init__(*args)
+            super(S3Details.NoS3StagingInformationFoundException, self).__init__(*args)
 
     class S3StagingPathMustStartWithS3(Exception):
         def __init__(self, *args):
-            super().__init__('s3Staging.path must be a path to S3, so start with s3://', *args)
+            super(S3Details.S3StagingPathMustStartWithS3, self).__init__('s3Staging.path must be a path to S3, so start with s3://', *args)
 
-    def __init__(self, config_helper):
+    def __init__(self, config_helper, source_table):
         if 's3Staging' not in config_helper.config:
             raise S3Details.NoS3StagingInformationFoundException()
         else:
@@ -507,7 +512,15 @@ class S3Details:
             if 'path' in s3_staging_conf:
                 # datetime alias for operations
                 self.nowString = "{:%Y-%m-%d_%H-%M-%S}".format(datetime.datetime.now())
-                self.dataStagingPath = "%s/%s/" % (s3_staging_conf['path'].rstrip("/"), self.nowString)
+                self.dataStagingRoot = "{s3_stage_path}/{timestamp}/".format(
+                    s3_stage_path=s3_staging_conf['path'].rstrip("/"),
+                    timestamp=self.nowString
+                )
+                self.dataStagingPath = "{root}{db_name}.{schema_name}.{table_name}".format(
+                    root=self.dataStagingRoot,
+                    db_name=source_table.get_db(),
+                    schema_name=source_table.get_schema(),
+                    table_name=source_table.get_table())
 
             if not self.dataStagingPath or not self.dataStagingPath.startswith("s3://"):
                 raise S3Details.S3StagingPathMustStartWithS3
@@ -539,40 +552,64 @@ class S3Details:
                 pass # if fails then already string type probably Python2
 
 class UnloadCopyTool:
-    def __init__(self, config_file, region):
+    def __init__(self, config_file, region, global_config_values={}):
         self.region = region
         self.s3_helper = S3Helper(self.region)
 
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
 
-        self.s3_details = S3Details(self.config_helper)
 
-        source_table = TableResourceFactory.get_source_table_resource_from_config_helper(self.config_helper,
+        self.source_table = TableResourceFactory.get_source_table_resource_from_config_helper(self.config_helper,
                                                                                          self.region)
-        destination_table = TableResourceFactory.get_target_table_resource_from_config_helper(self.config_helper,
+        self.destination_table = TableResourceFactory.get_target_table_resource_from_config_helper(self.config_helper,
                                                                                               self.region)
 
+        self.s3_details = S3Details(self.config_helper, self.source_table)
+
         print("Exporting from Source")
-        source_table.unload_data(self.s3_details)
+        self.source_table.unload_data(self.s3_details)
 
         print("Importing to Target")
-        destination_table.copy_data(self.s3_details)
+        self.destination_table.copy_data(self.s3_details)
 
         if self.s3_details.deleteOnSuccess:
             self.s3_helper.delete_s3_prefix(self.s3_details)
 
 
+
+
 def main(args):
+    global region
+    input_config_file = None
+    global_config_values = None
+
     if len(args) != 3:
-        usage()
+        global_config_reader = GlobalConfigParametersReader()
+        global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
+        counter = 1
+        if 's3ConfigFile' in global_config_values and global_config_values['s3ConfigFile'] is not None:
+            input_config_file = global_config_values['s3ConfigFile']
+        else:
+            input_config_file = args[counter]
+            counter += 1
+
+        if 'region' in global_config_values and global_config_values['region'] is not None:
+            region = global_config_values['region']
+        else:
+            region = args[counter]
+            counter += 1
+
+        if len(global_config_reader.unprocessed_arguments) != counter:
+            usage()
     else:
         # Legacy mode
-        global region
         region = args[2]
         input_config_file = args[1]
+        global_config_reader = GlobalConfigParametersReader()
+        global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
 
-        UnloadCopyTool(input_config_file, region)
+    UnloadCopyTool(input_config_file, region, global_config_values)
 
 if __name__ == "__main__":
     main(sys.argv)

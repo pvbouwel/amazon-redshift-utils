@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 """
-Unittests can only be ran in python3 due to dependencies
-
 * Copyright 2017, Amazon.com, Inc. or its affiliates. All Rights Reserved.
 *
 * Licensed under the Amazon Software License (the "License").
@@ -14,6 +12,9 @@ Unittests can only be ran in python3 due to dependencies
 * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 * express or implied. See the License for the specific language governing
 * permissions and limitations under the License.
+
+Unittests can only be ran in python3 due to dependencies
+
 """
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
@@ -58,6 +59,15 @@ class TestRedshiftUnloadCopy(TestCase):
             self._table = table
             self.dataStagingPath = None
 
+        def get_db(self):
+            return self._cluster.get_db()
+
+        def get_schema(self):
+            return self._schema
+
+        def get_table(self):
+            return self._table
+
         def unload_data(self, s3_details):
             s3_parts = redshift_unload_copy.S3Helper.tokenise_S3_Path(s3_details.dataStagingPath)
             s3_client = boto3.client('s3', 'eu-west-1')
@@ -90,25 +100,23 @@ class TestRedshiftUnloadCopy(TestCase):
         redshift_unload_copy.RedshiftCluster.execute_query = execute_query_mock
         redshift_unload_copy.RedshiftCluster._disconnect_from_rs = MagicMock()
 
-        redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
+        uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
 
         unload_command = """unload ('SELECT * FROM public.export_table')
-                     to 's3://support-peter-ie/tests/None/' credentials 
-                     '"aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
+                     to 's3://support-peter-ie/tests/{now}/mydb.public.export_table.' credentials 
+                     'aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
                      manifest
                      encrypted
                      gzip
-                     delimiter '^' addquotes escape allowoverwrite
-REGION 'us-east-1'"""
+                     delimiter '^' addquotes escape allowoverwrite""".format(now=uct.s3_details.nowString)
 
         copy_command = """copy public.import_table
-                   from 's3://support-peter-ie/tests/None/manifest' credentials 
-                   '"aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
+                   from 's3://support-peter-ie/tests/{now}/mydb.public.export_table.manifest' credentials 
+                   'aws_iam_role=aws iam role which is assigned to Redshift and has access to the s3 bucket;master_symmetric_key=Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0='
                    manifest 
                    encrypted
                    gzip
-                   delimiter '^' removequotes escape
-REGION 'us-east-1'"""
+                   delimiter '^' removequotes escape compupdate off REGION 'us-east-1' """.format(now=uct.s3_details.nowString)
         calls = [call(unload_command), call(copy_command)]
         execute_query_mock.assert_has_calls(calls)
 

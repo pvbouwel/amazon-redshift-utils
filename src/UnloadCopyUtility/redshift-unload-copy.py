@@ -19,6 +19,7 @@ python redshift_unload_copy.py <config file> <region>
 * permissions and limitations under the License.
 """
 import sys
+import logging
 import redshift_unload_copy
 """
  This file is only in place for backwards compatibility/callability
@@ -27,4 +28,6 @@ import redshift_unload_copy
 """
 
 if __name__ == "__main__":
+    logging.warning("The entry point redhsift-unload-copy.py is deprecated, it is recommended to use "
+                    "redshift_unload_copy.py which can be called with the same arguments.")
     redshift_unload_copy.main(sys.argv)

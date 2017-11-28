@@ -55,7 +55,7 @@ class TestRedshiftUnloadCopy(TestCase):
     def test_temporary_credential_expiration_predicate(self):
         example_url = 'my-cluSter.a1bcdefghijk.eU-west-1.redshift.amazonaws.com'
         rs_cluster = RedshiftCluster(example_url)
-        rs_cluster.user_creds_expiration = datetime.datetime.now() + datetime.timedelta(minutes=1, milliseconds=300)
+        rs_cluster._user_creds_expiration = (datetime.datetime.now() + datetime.timedelta(minutes=1, milliseconds=300))
         self.assertFalse(rs_cluster.is_temporary_credential_expired())
         time.sleep(0.4)
         self.assertTrue(rs_cluster.is_temporary_credential_expired())
