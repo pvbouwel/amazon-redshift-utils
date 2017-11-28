@@ -77,6 +77,11 @@
             "Description": "GitHub Url of repro to be bootstrapped on Ec2",
             "Type": "String",
             "Default": "https://github.com/pvbouwel/amazon-redshift-utils.git"
+        },
+        "GitHubBranch": {
+            "Description": "The branch to checkout for the repro to be bootstrapped on Ec2",
+            "Type": "String",
+            "Default": "pvbouwel-test-rs-unload-copy"
         }
     },
     "Conditions": {
@@ -327,7 +332,7 @@
                                 },
                                 "\n",
                                 "cd /home/ec2-user/amazon-redshift-utils\n",
-                                "git checkout pvbouwel-test-rs-unload-copy\n",
+                                "git checkout ",{"Ref": "GitHubBranch"},"\n",
                                 "cd /home/ec2-user\n",
                                 "bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
                                 {

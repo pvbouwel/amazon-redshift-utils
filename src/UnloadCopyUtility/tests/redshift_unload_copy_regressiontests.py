@@ -21,6 +21,11 @@ from unittest.mock import MagicMock, patch, call
 import redshift_unload_copy
 import boto3
 
+import util.RedshiftCluster
+
+import util.KMSHelper
+import util.S3Utils
+
 
 class TestRedshiftUnloadCopy(TestCase):
     s3_test_config = 's3://support-peter-ie/config_test.json'
@@ -41,13 +46,13 @@ class TestRedshiftUnloadCopy(TestCase):
         Mostly to test S3 boto to boto3 change
         :return:
         """
-        s3_helper = redshift_unload_copy.S3Helper('eu-west-1')
+        s3_helper = util.S3Utils.S3Helper('eu-west-1')
         s3_config = redshift_unload_copy.ConfigHelper(self.s3_test_config, s3_helper).config
         local_config = redshift_unload_copy.ConfigHelper(self.test_local_config).config
         self.assertEqual(s3_config, local_config)
 
     def test_decoding_to_verify_kms_client(self):
-        kms_helper = redshift_unload_copy.KMSHelper('us-east-1')
+        kms_helper = util.KMSHelper.KMSHelper('us-east-1')
         encoded = "AQICAHjX2Xlvwj8LO0wam2pvdxf/icSW7G30w7SjtJA5higfdwG7KjYEDZ+jXA6QTjJY9PlDAAAAZTBjBgkqhkiG9w0BBwagVjBUAgEAME8GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMx+xGf9Ys58uvtfl5AgEQgCILmeoTmmo+Sh1cFgjyqNrySDfQgPYsEYjDTe6OHT5Z0eop"
         decoded_kms = kms_helper.decrypt(encoded)
         self.assertEqual("testing".encode('utf-8'), decoded_kms)
@@ -69,7 +74,7 @@ class TestRedshiftUnloadCopy(TestCase):
             return self._table
 
         def unload_data(self, s3_details):
-            s3_parts = redshift_unload_copy.S3Helper.tokenise_S3_Path(s3_details.dataStagingPath)
+            s3_parts = util.S3Utils.S3Helper.tokenise_S3_Path(s3_details.dataStagingPath)
             s3_client = boto3.client('s3', 'eu-west-1')
             s3_client.put_object(Body='content1'.encode('utf-8'),
                                  Bucket=s3_parts[0],
@@ -84,7 +89,7 @@ class TestRedshiftUnloadCopy(TestCase):
 
     def test_staging_area_should_be_cleaned_up_when_delete_on_success(self):
         s3_client = boto3.client('s3', 'eu-west-1')
-        with patch('redshift_unload_copy.TableResource',
+        with patch('util.TableResource.TableResource',
                    new=TestRedshiftUnloadCopy.TableResourceMock) as unload_mock:
                 uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
                 full_s3_path = uct.s3_details.dataStagingPath
@@ -95,10 +100,10 @@ class TestRedshiftUnloadCopy(TestCase):
     def test_cluster_commands_for_test_config(self):
         kms_mock = MagicMock(return_value='Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0=')
         execute_query_mock = MagicMock()
-        redshift_unload_copy.KMSHelper.generate_base64_encoded_data_key = kms_mock
-        redshift_unload_copy.RedshiftCluster._conn_to_rs = MagicMock()
-        redshift_unload_copy.RedshiftCluster.execute_query = execute_query_mock
-        redshift_unload_copy.RedshiftCluster._disconnect_from_rs = MagicMock()
+        util.KMSHelper.KMSHelper.generate_base64_encoded_data_key = kms_mock
+        util.RedshiftCluster.RedshiftCluster._conn_to_rs = MagicMock()
+        util.RedshiftCluster.RedshiftCluster.execute_query = execute_query_mock
+        util.RedshiftCluster.RedshiftCluster._disconnect_from_rs = MagicMock()
 
         uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
 

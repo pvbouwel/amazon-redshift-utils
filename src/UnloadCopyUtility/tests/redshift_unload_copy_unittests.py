@@ -17,7 +17,7 @@ Unittests can only be ran in python3 due to dependencies
 """
 from unittest import TestCase
 from unittest.mock import MagicMock
-from redshift_unload_copy import RedshiftCluster
+from util.RedshiftCluster import RedshiftCluster
 import redshift_unload_copy
 import datetime
 import time
