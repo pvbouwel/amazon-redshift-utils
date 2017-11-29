@@ -7,8 +7,9 @@ STEP_LABEL=""
 
 function log_section_action() {
   # $1 will be the action
-  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${STEP_LABEL}:$1" >>${STDOUTPUT}
-  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${STEP_LABEL}:$1" >>${STDERROR}
+  date=`date`
+  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${date}:${STEP_LABEL}:$1" >>${STDOUTPUT}
+  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${date}:${STEP_LABEL}:$1" >>${STDERROR}
 
 }
 
@@ -99,7 +100,7 @@ do
             stop_step 0
             break;
         else
-            echo "`date` Stack not ready yet" >> ${STDOUTPUT}
+            echo "`date` Cluster restore not finished yet" >> ${STDOUTPUT}
             minutes_waited="$( $minutes_waited + 1 )"
             sleep 60
         fi
