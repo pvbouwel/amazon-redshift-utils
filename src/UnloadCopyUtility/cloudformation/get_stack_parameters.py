@@ -42,7 +42,7 @@ class StackParametersBuilder:
 
     def enrich_s3_parameters(self):
         if not self.are_s3_parameters_enriched:
-            for key in self.parameters.keys():
+            for key in list(self.parameters):
                 if key.startswith('S3') and key.endswith('BucketArn'):
                     bucket_arn = self.parameters[key]
                     new_key = key[2:-3]

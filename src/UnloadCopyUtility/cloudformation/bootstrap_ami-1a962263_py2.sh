@@ -5,18 +5,19 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 STEP_LABEL="Install Python pip (easy_install pip)"
 start_step
-easy_install pip >>${STDOUTPUT} 2>>${STDERROR}
+sudo easy_install pip >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 STEP_LABEL="Install OS packages (yum install -y postgresql postgresql-devel python27-virtualenv python36-devel python36-virtualenv gcc python-devel git aws-cli )"
 start_step
-yum install -y postgresql postgresql-devel gcc python-devel python27-virtualenv python36-devel python36-virtualenv git aws-cli >>${STDOUTPUT} 2>>${STDERROR}
+sudo yum install -y postgresql postgresql-devel gcc python-devel python27-virtualenv python36-devel python36-virtualenv git aws-cli >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-STEP_LABEL="Install PyGreSQL using pip (pip install PyGreSQL)"
-start_step
-pip install PyGreSQL  >>${STDOUTPUT} 2>>${STDERROR}
-r=$? && stop_step $r
+#Should be installed per environment
+#STEP_LABEL="Install PyGreSQL using pip (pip install PyGreSQL)"
+#start_step
+#pip install PyGreSQL  >>${STDOUTPUT} 2>>${STDERROR}
+#r=$? && stop_step $r
 
 STEP_LABEL="Get IAM_INFO.json"
 start_step

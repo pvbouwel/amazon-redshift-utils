@@ -355,12 +355,12 @@
                                 },
                                 " --query CiphertextBlob",
                                 " --output text >PASSWORD_KMS.txt\n",
-                                "bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
+                                "chown -R ec2-user /home/ec2-user\n",
+                                "su - ec2-user -c 'bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
                                 {
                                     "Ref": "AMIForEC2"
                                 },
-                                "_py2.sh\n",
-                                "chown -R ec2-user /home/ec2-user\n"
+                                "_py2.sh'\n"
                             ]
                         ]
                     }
