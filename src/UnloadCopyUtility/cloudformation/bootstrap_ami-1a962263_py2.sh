@@ -82,6 +82,14 @@ STEP_LABEL="Get Cloudformation Stack name (aws cloudformation describe-stacks --
 aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME} >STACK_DETAILS.json 2>>${STDERROR}
 r=$? && stop_step $r
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+STEP_LABEL="Get all stack parameters (python ${DIR}/get_stack_parameters.py)"
+start_step
+python ${DIR}/get_stack_parameters.py
+cat $HOME/stack_parameters.json
+grep "TargetClusterEndpointPort" $HOME/stack_parameters.json &>/dev/null
+r=$? && stop_step $r
+
 SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
 STEP_LABEL="Await Redshift restore of source cluster (${SOURCE_CLUSTER_NAME})"
 start_step

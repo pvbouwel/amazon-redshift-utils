@@ -339,16 +339,22 @@
                                 "\n",
                                 "cd /home/ec2-user\n",
                                 "aws kms encrypt",
-                                  " --key-id \"alias/RedshiftUnloadCopyUtility\"",
-                                  " --plaintext ", {"Ref": "MasterUserPassword"},
-                                  " --region ", {"Ref": "AWS::Region" },
-                                  " --query CiphertextBlob",
-                                  " --output text >PASSWORD_KMS.TXT\n",
+                                " --key-id \"alias/RedshiftUnloadCopyUtility\"",
+                                " --plaintext ",
+                                {
+                                    "Ref": "MasterUserPassword"
+                                },
+                                " --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                " --query CiphertextBlob",
+                                " --output text >PASSWORD_KMS.txt\n",
                                 "bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
-                                  {
+                                {
                                     "Ref": "AMIForEC2"
-                                  },
-                                  "_py2.sh\n",
+                                },
+                                "_py2.sh\n",
                                 "chown -R ec2-user /home/ec2-user\n"
                             ]
                         ]
@@ -1064,25 +1070,20 @@
             "Properties": {
                 "Description": "Key created by cloud formation for Unload-Copy-testing, should not be considered well protected",
                 "KeyPolicy": {
-                    "Sid": "Enable IAM User Permissions",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": {
-                            "Fn::Join": [
-                                "",
-                                [
-                                    "arn:aws:iam::",
-                                    {
-                                        "Ref": "AWS::AccountId"
-                                    },
-                                    ":root"
-                                ]
-                            ]
-                        }
-                    },
-                    "Action": "kms:*",
-                    "Resource": "*"
-                }
+          "Version": "2012-10-17",
+          "Id": "key-default-1",
+          "Statement": [
+            {
+              "Sid": "Enable IAM User Permissions",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": { "Fn::Join" : ["" , ["arn:aws:iam::", {"Ref" : "AWS::AccountId"} ,":root" ]] }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            }
+          ]
+        }
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
@@ -1146,7 +1147,7 @@
                 ]
             }
         },
-        "Ec2IP": {
+        "EC2IP": {
             "Description": "EC2 IP address",
             "Value": {
                 "Fn::GetAtt": [
