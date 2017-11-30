@@ -44,7 +44,7 @@
             "AllowedPattern": "([a-z])([a-z]|[0-9])*"
         },
         "MasterUserPassword": {
-            "Description": "The password that is associated with the master user account for the cluster that is being created. Stored encrypted via KMS",
+            "Description": "The password that is associated with the master user account for the cluster that is being created. This is for test purposes only and the password will be available in plaintext on the test instance so do not use an existing password.",
             "Type": "String",
             "NoEcho": "true"
         },

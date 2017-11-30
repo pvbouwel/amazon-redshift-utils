@@ -6,7 +6,7 @@ from cloudformation.get_stack_parameters import StackParametersBuilder
 
 class StackParametersBuilderUnittests(TestCase):
     def setUp(self):
-        self.resource_path = 'resources/cloudformation/scenario1'
+        self.resource_path = 'tests/resources/cloudformation/scenario1'
         self.spb = StackParametersBuilder(self.resource_path)
         self.set_cloudformation_stubber_for_client(self.spb.get_redshift_client())
 

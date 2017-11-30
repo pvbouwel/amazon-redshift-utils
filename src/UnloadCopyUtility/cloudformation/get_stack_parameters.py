@@ -71,13 +71,19 @@ class StackParametersBuilder:
 
 if __name__ == '__main__':
     default_dir = os.environ['HOME']
-    persist_file_target = '{dir}/stack_parameters.json'.format(dir=default_dir)
-    if os.path.isfile(persist_file_target):
-        with open(persist_file_target, 'r') as stack_parameters:
+    persist_JSON_parameters_target = '{dir}/stack_parameters.json'.format(dir=default_dir)
+    persist_BASH_parameters_target = '{dir}/variables.sh'.format(dir=default_dir)
+
+    if os.path.isfile(persist_JSON_parameters_target):
+        with open(persist_JSON_parameters_target, 'r') as stack_parameters:
             parameters = json.load(stack_parameters)
     else:
         pb = StackParametersBuilder(default_dir)
         parameters = pb.get_parameters_dict()
-        with open(persist_file_target, 'w') as stack_parameters:
+        with open(persist_JSON_parameters_target, 'w') as stack_parameters:
             json.dump(parameters, stack_parameters)
+        with open(persist_BASH_parameters_target, 'w') as bash_variables:
+            for key, value in parameters.items():
+                bash_variables.write('{key}="{value}"\n'.format(key=key, value=value.strip()))
+
     print(json.dumps(parameters))

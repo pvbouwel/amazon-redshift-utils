@@ -1,40 +1,14 @@
 #!/bin/bash
-STDOUTPUT="output.log"
-STDERROR="output.error"
-SECTION_SEPARATOR=">>>SECTION:"
-STEP_COUNTER=0
-STEP_LABEL=""
-
-function log_section_action() {
-  # $1 will be the action
-  date=`date`
-  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${date}:${STEP_LABEL}:$1" >>${STDOUTPUT}
-  echo "${SECTION_SEPARATOR}${STEP_COUNTER}:${date}:${STEP_LABEL}:$1" >>${STDERROR}
-
-}
-
-function start_step() {
-  STEP_COUNTER="$(( $STEP_COUNTER + 1 ))"
-  log_section_action "START"
-}
-
-function stop_step() {
-  if [ "$1" == "0" ]
-  then
-    log_section_action "STEP SUCCEEDED"
-  else
-    log_section_action "STEP FAILED WITH RETURN_CODE $1"
-  fi
-}
+. ./log_functionality.sh
 
 STEP_LABEL="Install Python pip (easy_install pip)"
 start_step
 easy_install pip >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-STEP_LABEL="Install OS packages (yum install -y postgresql postgresql-devel gcc python-devel git aws-cli)"
+STEP_LABEL="Install OS packages (yum install -y postgresql postgresql-devel python27-virtualenv python36-devel python36-virtualenv gcc python-devel git aws-cli )"
 start_step
-yum install -y postgresql postgresql-devel gcc python-devel git aws-cli >>${STDOUTPUT} 2>>${STDERROR}
+yum install -y postgresql postgresql-devel gcc python-devel python27-virtualenv python36-devel python36-virtualenv git aws-cli >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 STEP_LABEL="Install PyGreSQL using pip (pip install PyGreSQL)"
@@ -45,7 +19,7 @@ r=$? && stop_step $r
 STEP_LABEL="Get IAM_INFO.json"
 start_step
 curl http://169.254.169.254/latest/meta-data/iam/info > IAM_INFO.json 2>>${STDERROR}
-echo "Result=`cat IAM_INFO.json`" >>${STDOUTPUT}
+echo "Result=`cat IAM_INFO.json`" >>${STDOUTPUT} 2>>${STDERROR}
 cat IAM_INFO.json | grep Success &>>/dev/null
 r=$? && stop_step $r
 
@@ -82,12 +56,53 @@ STEP_LABEL="Get Cloudformation Stack name (aws cloudformation describe-stacks --
 aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME} >STACK_DETAILS.json 2>>${STDERROR}
 r=$? && stop_step $r
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+STEP_LABEL="Setup Python2.7 environment"
+start_step
+source ./variables.sh
+virtualenv-2.7 ${VIRTUAL_ENV_PY27_DIR} >>${STDOUTPUT} 2>>${STDERROR}
+source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
+pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+deactivate
+
+STEP_LABEL="Setup Python3.6 environment"
+start_step
+source ./variables.sh
+virtualenv-3.6 ${VIRTUAL_ENV_PY36_DIR} >>${STDOUTPUT} 2>>${STDERROR}
+source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
+pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+deactivate
+
+
 STEP_LABEL="Get all stack parameters (python ${DIR}/get_stack_parameters.py)"
 start_step
-python ${DIR}/get_stack_parameters.py
-cat $HOME/stack_parameters.json
+source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
+python3 ${DIR}/get_stack_parameters.py >>${STDOUTPUT} 2>>${STDERROR}
 grep "TargetClusterEndpointPort" $HOME/stack_parameters.json &>/dev/null
+r=$? && stop_step $r
+
+source ./variables.sh
+
+STEP_LABEL="Create .pgpass files and test cluster access"
+start_step
+cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}
+CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
+echo "${SourceClusterEndpointAddress}:${SourceClusterEndpointPort}:${SourceClusterDBName}:${SourceClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
+echo "${TargetClusterEndpointAddress}:${TargetClusterEndpointPort}:${TargetClusterDBName}:${TargetClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
+chmod 600  ${HOME}/.pgpass 2>>${STDERROR}
+#Only verify that there are 2 records next we have test for access
+cat ${HOME}/.pgpass | wc -l | grep "^2$"
+r=$? && stop_step $r
+
+STEP_LABEL="Test passwordless (.pgpass) access to source cluster"
+start_step
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'result='||1;" | grep "result=1"
+r=$? && stop_step $r
+
+STEP_LABEL="Test passwordless (.pgpass) access to target cluster"
+start_step
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'result='||1;" | grep "result=1"
 r=$? && stop_step $r
 
 SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
@@ -113,4 +128,12 @@ do
             sleep 60
         fi
     fi
+done
+
+
+#Start running the scenario's
+for file in `find $DIR -type f -name 'scenario*.sh'`
+do
+ log_section_action "Loading scenario file $file"
+ . ${file}
 done
