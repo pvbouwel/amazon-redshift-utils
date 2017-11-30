@@ -82,6 +82,11 @@
             "Description": "The branch to checkout for the repro to be bootstrapped on Ec2",
             "Type": "String",
             "Default": "pvbouwel-test-rs-unload-copy"
+        },
+        "ReportBucket": {
+            "Description": "The bucket in which to put the test report (expected to be in the same region)",
+            "Type": "String",
+            "Default": "copy-unload"
         }
     },
     "Conditions": {
@@ -614,6 +619,67 @@
                 "S3CopyUnloadBucket"
             ]
         },
+        "S3ReportPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "EC2InstanceRole"
+                    }
+                ],
+                "PolicyName": "PolicyForS3AccessToBucket",
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "VisualEditor0",
+                            "Effect": "Allow",
+                            "Action": "s3:ListBucket",
+                            "Resource": [
+                                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                           "arn:aws:s3:::",
+                                           { "Ref": "ReportBucket"}
+                                        ]
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "Sid": "VisualEditor1",
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:ListAllMyBuckets",
+                                "s3:HeadBucket",
+                                "s3:ListObjects"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "VisualEditor2",
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:*"
+                            ],
+                            "Resource": [
+                                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                           "arn:aws:s3:::",
+                                           { "Ref": "ReportBucket"},
+                                           "/*"
+                                        ]
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
         "KMSAccessToKeyPolicy": {
             "Type": "AWS::IAM::Policy",
             "Properties": {
@@ -1115,6 +1181,19 @@
                     "Arn"
                 ]
             }
+        },
+        "S3ReportBucketArn": {
+            "Description": "S3 bucket voor unload-copy param=REPORT_BUCKET_ARN",
+            "Value":
+                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                           "arn:aws:s3:::",
+                                           { "Ref": "ReportBucket"}
+                                        ]
+                                    ]
+                                }
         },
         "S3CopyRole": {
             "Description": "Role-arn that will be used for S3 access param=COPY_ROLE",

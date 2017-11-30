@@ -139,3 +139,7 @@ do
  log_section_action "Loading scenario file $file"
  . ${file}
 done
+
+#Publish results
+aws s3 cp ${STDOUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
+aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"

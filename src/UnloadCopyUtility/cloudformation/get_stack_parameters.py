@@ -42,8 +42,11 @@ class StackParametersBuilder:
 
     def enrich_s3_parameters(self):
         if not self.are_s3_parameters_enriched:
-            bucket_arn = self.parameters['S3CopyUnloadBucketArn']
-            self.parameters['CopyUnloadBucket'] = bucket_arn.replace('arn:aws:s3:::', '')
+            for key in self.parameters.keys():
+                if key.startswith('S3') and key.endswith('BucketArn'):
+                    bucket_arn = self.parameters[key]
+                    new_key = key[2:-3]
+                    self.parameters[new_key] = bucket_arn.replace('arn:aws:s3:::', '')
             self.are_s3_parameters_enriched = True
 
     def enrich_cluster_parameters(self):
