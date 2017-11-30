@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-. ../../variables.sh
+. ${DIR}/variables.sh
 
 STEP_LABEL="Create Unload Copy Manifest"
 start_step

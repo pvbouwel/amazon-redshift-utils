@@ -1,5 +1,7 @@
 #!/bin/bash
-. ./log_functionality.sh
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+. ${DIR}/log_functionality.sh
 
 STEP_LABEL="Install Python pip (easy_install pip)"
 start_step
@@ -58,7 +60,7 @@ r=$? && stop_step $r
 
 STEP_LABEL="Setup Python2.7 environment"
 start_step
-source ./variables.sh
+source ${DIR}/variables.sh
 virtualenv-2.7 ${VIRTUAL_ENV_PY27_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
@@ -67,7 +69,7 @@ deactivate
 
 STEP_LABEL="Setup Python3.6 environment"
 start_step
-source ./variables.sh
+source ${DIR}/variables.sh
 virtualenv-3.6 ${VIRTUAL_ENV_PY36_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
@@ -82,9 +84,9 @@ python3 ${DIR}/get_stack_parameters.py >>${STDOUTPUT} 2>>${STDERROR}
 grep "TargetClusterEndpointPort" $HOME/stack_parameters.json &>/dev/null
 r=$? && stop_step $r
 
-source ./variables.sh
+source ${DIR}/variables.sh
 
-STEP_LABEL="Create .pgpass files and test cluster access"
+STEP_LABEL="Create .pgpass files"
 start_step
 cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}
 CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
@@ -92,7 +94,7 @@ echo "${SourceClusterEndpointAddress}:${SourceClusterEndpointPort}:${SourceClust
 echo "${TargetClusterEndpointAddress}:${TargetClusterEndpointPort}:${TargetClusterDBName}:${TargetClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
 chmod 600  ${HOME}/.pgpass 2>>${STDERROR}
 #Only verify that there are 2 records next we have test for access
-cat ${HOME}/.pgpass | wc -l | grep "^2$"
+cat ${HOME}/.pgpass | grep -v "::"| wc -l | grep "^2$" >>/dev/null 2>>${STDERROR}
 r=$? && stop_step $r
 
 STEP_LABEL="Test passwordless (.pgpass) access to source cluster"
@@ -117,7 +119,7 @@ do
         stop_step 100
         break
     else
-        aws redshift describe-clusters --cluster-identifier ${SOURCE_CLUSTER_NAME} --region ${REGION_NAME} | grep -A 5  RestoreStatus | grep "\"Status\"" | grep completed
+        aws redshift describe-clusters --cluster-identifier ${SOURCE_CLUSTER_NAME} --region ${REGION_NAME} | grep -A 5  RestoreStatus | grep "\"Status\"" | grep completed >>/dev/null
         if [ "$?" = "0" ]
         then
             stop_step 0
@@ -132,7 +134,7 @@ done
 
 
 #Start running the scenario's
-for file in `find $DIR -type f -name 'scenario*.sh'`
+for file in `find $DIR -type f -name 'run_test.sh'`
 do
  log_section_action "Loading scenario file $file"
  . ${file}
