@@ -45,8 +45,8 @@ r=$? && stop_step $r
 
 STEP_LABEL="Create table in target cluster"
 start_step
-cat scenario001.ddl.sql >${STDOUT}
-psql -h ${TargetClusterEndpointAddress} -p ${TargetEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f scenario001.ddl.sql | grep "CREATE TABLE"
+cat scenario001.ddl.sql >${STDOUTPUT}
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f scenario001.ddl.sql | grep "CREATE TABLE"
 r=$? && stop_step $r
 
 
@@ -54,4 +54,8 @@ STEP_LABEL="Run Unload Copy Utility"
 start_step
 source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 cd /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility && python3 redshift_unload_copy.py /home/ec2-user/scenario001.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
+EXPECTED_COUNT=`psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'count='||count(*) from ssb.dwdate;" | grep "count=[0-9]*"|awk -F= '{ print $2}'
+2556`
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'count='||count(*) from public.dwdate;" | grep "count=${EXPECTED_COUNT}" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
+deactivate

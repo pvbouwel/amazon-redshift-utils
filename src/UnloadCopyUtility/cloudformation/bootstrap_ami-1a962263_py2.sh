@@ -177,5 +177,5 @@ done
 
 #Publish results
 echo "Publishing results to S3" >>${STDOUTPUT} 2>>${STDERROR}
-aws s3 cp ${STDOUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
+aws s3 cp ${STDOUTPUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
 aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
