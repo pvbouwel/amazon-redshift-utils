@@ -627,7 +627,7 @@
                         "Ref": "EC2InstanceRole"
                     }
                 ],
-                "PolicyName": "PolicyForS3AccessToBucket",
+                "PolicyName": "PolicyForS3ReportAccessToBucket",
                 "PolicyDocument": {
                     "Version": "2012-10-17",
                     "Statement": [

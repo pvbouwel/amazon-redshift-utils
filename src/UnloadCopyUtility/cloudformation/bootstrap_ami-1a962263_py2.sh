@@ -123,25 +123,23 @@ r=$? && stop_step $r
 STEP_LABEL="Test passwordless (.pgpass) access to source cluster"
 start_step
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'result='||1;" | grep "result=1" >>${STDOUTPUT} 2>>${STDERROR}
-alias psql_source_cluster="psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName}"
 r=$? && stop_step $r
 
 STEP_LABEL="Test passwordless (.pgpass) access to target cluster"
 start_step
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'result='||1;" | grep "result=1" >>${STDOUTPUT} 2>>${STDERROR}
-alias psql_target_cluster="psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName}"
 r=$? && stop_step $r
 
 
 #Setup admin tools
 STEP_LABEL="Create Admin schema on source if it does not exist"
 start_step
-psql_source_cluster -c "CREATE SCHEMA IF NOT EXISTS admin;" | grep "CREATE SCHEMA" >>${STDOUTPUT} 2>>${STDERROR}
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "CREATE SCHEMA IF NOT EXISTS admin;" | grep "CREATE SCHEMA" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 STEP_LABEL="Create Admin view admin.v_generate_tbl_ddl on source if it does not exist"
 start_step
-psql_source_cluster -f ${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql | grep "CREATE VIEW"
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -f ${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql | grep "CREATE VIEW"
 r=$? && stop_step $r
 
 SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
