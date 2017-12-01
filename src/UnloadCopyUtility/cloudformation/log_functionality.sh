@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-STDOUTPUT="output.log"
-STDERROR="output.error"
+STDOUTPUT="${HOME}/output.log"
+STDERROR="${HOME}/output.error"
 SECTION_SEPARATOR=">>>SECTION:"
 STEP_LABEL=""
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
