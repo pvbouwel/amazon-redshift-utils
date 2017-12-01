@@ -4,7 +4,7 @@
 
 STEP_LABEL="Create Unload Copy Manifest"
 start_step
-cat >scenario_001.json <<EOF
+cat >scenario001.json <<EOF
 {
   "unloadSource": {
     "clusterEndpoint": "${SourceClusterEndpointAddress}",
@@ -13,7 +13,7 @@ cat >scenario_001.json <<EOF
     "connectUser": "${SourceClusterMasterUsername}",
     "db": "${SourceClusterDBName}",
     "schemaName": "ssb",
-    "tableName": "export_table"
+    "tableName": "dwdate"
   },
   "s3Staging": {
     "aws_iam_role": "${S3CopyRole}",
@@ -29,10 +29,28 @@ cat >scenario_001.json <<EOF
     "connectUser": "${SourceClusterMasterUsername}",
     "db": "${SourceClusterDBName}",
     "schemaName": "public",
-    "tableName": "import_table"
+    "tableName": "dwdate"
   }
 }
 EOF
 cat scenario_001.json >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
 
+STEP_LABEL="Create DDL for table in target cluster"
+start_step
+#Extract DDL
+psql_source_cluster -c "select ddl from admin.v_generate_tbl_ddl where schemaname='ssb' and tablename='dwdate';" | awk '/CREATE TABLE/{flag=1}/ ;$/{flag=0}flag' | sed 's/ssb/public/' >scenario001.ddl.sql
+r=$? && stop_step $r
+
+STEP_LABEL="Create table in target cluster"
+start_step
+cat scenario001.ddl.sql >${STDOUT}
+psql_target_cluster -f scenario001.ddl.sql | grep "CREATE TABLE"
+r=$? && stop_step $r
+
+
+STEP_LABEL="Run Unload Copy Utility"
+start_step
+source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
+cd /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility && python3 redshift_unload_copy.py /home/ec2-user/scenario001.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r

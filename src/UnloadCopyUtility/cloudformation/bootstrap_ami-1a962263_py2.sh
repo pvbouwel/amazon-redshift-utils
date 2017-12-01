@@ -35,7 +35,7 @@ max_minutes_to_wait=15
 minutes_waited=0
 while [ 1 = 1 ]
 do
-    if [ ${minutes_waited} = ${max_minutes_to_wait} ]
+    if [ "${minutes_waited}" = "${max_minutes_to_wait}" ]
     then
         stop_step 100
         break
@@ -47,7 +47,7 @@ do
             break;
         else
             echo "`date` Stack not ready yet" >> ${STDOUTPUT}
-            minutes_waited="$( $minutes_waited + 1 )"
+            minutes_waited="$(( $minutes_waited + 1 ))"
             sleep 60
         fi
     fi
@@ -87,15 +87,6 @@ r=$? && stop_step $r
 
 source ${DIR}/variables.sh
 
-STEP_LABEL="Reset password of source cluster to CloudFormation Configuration"
-#Needed because source is restored from snapshot.
-start_step
-aws redshift modify-cluster --cluster-identifier "${SourceClusterName}" --master-user-password "${SourceClusterMasterUsername}" --region "${Region}"  >>${STDOUTPUT} 2>>${STDERROR}
-r=$? && stop_step $r
-
-
-
-
 STEP_LABEL="Create .pgpass files"
 start_step
 cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}
@@ -107,14 +98,50 @@ chmod 600  ${HOME}/.pgpass 2>>${STDERROR}
 cat ${HOME}/.pgpass | grep -v "::"| wc -l | grep "^2$" >>/dev/null 2>>${STDERROR}
 r=$? && stop_step $r
 
+STEP_LABEL="Reset password of source cluster to CloudFormation Configuration"
+#Needed because source is restored from snapshot.
+start_step
+if [ "${CLUSTER_DECRYPTED_PASSWORD}" = "" ]
+then
+    CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
+fi
+aws redshift modify-cluster --cluster-identifier "${SourceClusterName}" --master-user-password "${CLUSTER_DECRYPTED_PASSWORD}" --region "${Region}"  >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+
+STEP_LABEL="Await no more pending modified variables"
+start_step
+return_code=1
+while [ "$return_code" != "0" ]
+do
+  echo "There are variables to be modified on the cluster await cluster to be in sync"
+  sleep 20
+  aws redshift describe-clusters --cluster-identifier "${SourceClusterName}" --region "${Region}" | grep "\"PendingModifiedValues\": {}" >>/dev/null 2>>/dev/null
+  return_code=$?
+done
+r=$? && stop_step $r
+
 STEP_LABEL="Test passwordless (.pgpass) access to source cluster"
 start_step
-psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'result='||1;" | grep "result=1"
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'result='||1;" | grep "result=1" >>${STDOUTPUT} 2>>${STDERROR}
+alias psql_source_cluster="psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName}"
 r=$? && stop_step $r
 
 STEP_LABEL="Test passwordless (.pgpass) access to target cluster"
 start_step
-psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'result='||1;" | grep "result=1"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'result='||1;" | grep "result=1" >>${STDOUTPUT} 2>>${STDERROR}
+alias psql_target_cluster="psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName}"
+r=$? && stop_step $r
+
+
+#Setup admin tools
+STEP_LABEL="Create Admin schema on source if it does not exist"
+start_step
+psql_source_cluster -c "CREATE SCHEMA IF NOT EXISTS admin;" | grep "CREATE SCHEMA" >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+
+STEP_LABEL="Create Admin view admin.v_generate_tbl_ddl on source if it does not exist"
+start_step
+psql_source_cluster -f ${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql | grep "CREATE VIEW"
 r=$? && stop_step $r
 
 SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
@@ -124,7 +151,7 @@ max_minutes_to_wait=20
 minutes_waited=0
 while [ 1 = 1 ]
 do
-    if [ ${minutes_waited} = ${max_minutes_to_wait} ]
+    if [ "${minutes_waited}" = "${max_minutes_to_wait}" ]
     then
         stop_step 100
         break
@@ -136,7 +163,7 @@ do
             break;
         else
             echo "`date` Cluster restore not finished yet" >> ${STDOUTPUT}
-            minutes_waited="$( $minutes_waited + 1 )"
+            minutes_waited="$(( $minutes_waited + 1 ))"
             sleep 60
         fi
     fi
@@ -151,5 +178,6 @@ do
 done
 
 #Publish results
-aws s3 cp ${STDOUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
-aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
+echo "Publishing results to S3" >>${STDOUTPUT} 2>>${STDERROR}
+aws s3 cp ${STDOUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
+aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
