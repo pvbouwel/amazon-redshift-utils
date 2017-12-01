@@ -87,6 +87,15 @@ r=$? && stop_step $r
 
 source ${DIR}/variables.sh
 
+STEP_LABEL="Reset password of source cluster to CloudFormation Configuration"
+#Needed because source is restored from snapshot.
+start_step
+aws redshift modify-cluster --cluster-identifier "${SourceClusterName}" --master-user-password "${SourceClusterMasterUsername}" --region "${Region}"  >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+
+
+
+
 STEP_LABEL="Create .pgpass files"
 start_step
 cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}

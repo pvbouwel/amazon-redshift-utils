@@ -640,8 +640,10 @@
                                     "Fn::Join": [
                                         "",
                                         [
-                                           "arn:aws:s3:::",
-                                           { "Ref": "ReportBucket"}
+                                            "arn:aws:s3:::",
+                                            {
+                                                "Ref": "ReportBucket"
+                                            }
                                         ]
                                     ]
                                 }
@@ -668,15 +670,22 @@
                                     "Fn::Join": [
                                         "",
                                         [
-                                           "arn:aws:s3:::",
-                                           { "Ref": "ReportBucket"},
-                                           "/*"
+                                            "arn:aws:s3:::",
+                                            {
+                                                "Ref": "ReportBucket"
+                                            },
+                                            "/*"
                                         ]
                                     ]
                                 }
                             ]
                         }
                     ]
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "78467a28-e634-4785-93b1-1cfef8b3675f"
                 }
             }
         },
@@ -829,7 +838,8 @@
                                 "redshift:DescribeLoggingStatus",
                                 "redshift:GetClusterCredentials",
                                 "redshift:JoinGroup",
-                                "redshift:CreateClusterUser"
+                                "redshift:CreateClusterUser",
+                                "redshift:ModifyCluster"
                             ],
                             "Resource": [
                                 {
@@ -1136,20 +1146,31 @@
             "Properties": {
                 "Description": "Key created by cloud formation for Unload-Copy-testing, should not be considered well protected",
                 "KeyPolicy": {
-          "Version": "2012-10-17",
-          "Id": "key-default-1",
-          "Statement": [
-            {
-              "Sid": "Enable IAM User Permissions",
-              "Effect": "Allow",
-              "Principal": {
-                "AWS": { "Fn::Join" : ["" , ["arn:aws:iam::", {"Ref" : "AWS::AccountId"} ,":root" ]] }
-              },
-              "Action": "kms:*",
-              "Resource": "*"
-            }
-          ]
-        }
+                    "Version": "2012-10-17",
+                    "Id": "key-default-1",
+                    "Statement": [
+                        {
+                            "Sid": "Enable IAM User Permissions",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "arn:aws:iam::",
+                                            {
+                                                "Ref": "AWS::AccountId"
+                                            },
+                                            ":root"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "Action": "kms:*",
+                            "Resource": "*"
+                        }
+                    ]
+                }
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
@@ -1184,16 +1205,17 @@
         },
         "S3ReportBucketArn": {
             "Description": "S3 bucket voor unload-copy param=REPORT_BUCKET_ARN",
-            "Value":
-                {
-                                    "Fn::Join": [
-                                        "",
-                                        [
-                                           "arn:aws:s3:::",
-                                           { "Ref": "ReportBucket"}
-                                        ]
-                                    ]
-                                }
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "arn:aws:s3:::",
+                        {
+                            "Ref": "ReportBucket"
+                        }
+                    ]
+                ]
+            }
         },
         "S3CopyRole": {
             "Description": "Role-arn that will be used for S3 access param=COPY_ROLE",
@@ -1290,24 +1312,23 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 860,
-                    "y": 180
+                    "x": -220,
+                    "y": 280
                 },
                 "z": 1,
                 "embeds": []
             },
             "f63b650b-a467-4002-b732-39c9a67cd76d": {
                 "size": {
-                    "width": 760,
-                    "height": 830
+                    "width": 600,
+                    "height": 800
                 },
                 "position": {
-                    "x": -100,
-                    "y": 80
+                    "x": -1120,
+                    "y": 390
                 },
                 "z": 1,
                 "embeds": [
-                    "e14cc528-132e-4f54-9d00-30d404865923",
                     "c077a6bc-3d4c-4886-b95d-a73b93066e88",
                     "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
                     "943687ae-e88e-41e4-96b0-0a9a0c45adc0"
@@ -1315,12 +1336,12 @@
             },
             "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad": {
                 "size": {
-                    "width": 240,
-                    "height": 240
+                    "width": 250,
+                    "height": 140
                 },
                 "position": {
-                    "x": -70,
-                    "y": 90
+                    "x": -1090,
+                    "y": 390
                 },
                 "z": 2,
                 "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
@@ -1343,8 +1364,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -40,
-                    "y": 120
+                    "x": -970,
+                    "y": 450
                 },
                 "z": 3,
                 "parent": "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
@@ -1362,21 +1383,20 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -50,
-                    "y": 350
+                    "x": -1240,
+                    "y": 570
                 },
-                "z": 2,
-                "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
+                "z": 0,
                 "embeds": []
             },
             "943687ae-e88e-41e4-96b0-0a9a0c45adc0": {
                 "size": {
-                    "width": 340,
-                    "height": 560
+                    "width": 440,
+                    "height": 500
                 },
                 "position": {
-                    "x": 190,
-                    "y": 250
+                    "x": -1090,
+                    "y": 570
                 },
                 "z": 2,
                 "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
@@ -1396,12 +1416,12 @@
             },
             "c3b7906b-b128-4741-acaa-f3d9b577f3ca": {
                 "size": {
-                    "width": 240,
-                    "height": 240
+                    "width": 250,
+                    "height": 250
                 },
                 "position": {
-                    "x": 220,
-                    "y": 550
+                    "x": -1020,
+                    "y": 760
                 },
                 "z": 3,
                 "parent": "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
@@ -1419,8 +1439,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 740,
-                    "y": 50
+                    "x": -40,
+                    "y": -30
                 },
                 "z": 1,
                 "embeds": []
@@ -1431,8 +1451,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 250,
-                    "y": 610
+                    "x": -980,
+                    "y": 880
                 },
                 "z": 4,
                 "parent": "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
@@ -1453,8 +1473,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 360,
-                    "y": 390
+                    "x": -730,
+                    "y": 630
                 },
                 "z": 3,
                 "parent": "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
@@ -1496,8 +1516,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 340,
-                    "y": 610
+                    "x": -980,
+                    "y": 800
                 },
                 "z": 4,
                 "parent": "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
@@ -1527,10 +1547,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -50,
-                    "y": 430
+                    "x": -1020,
+                    "y": 630
                 },
-                "z": 2,
+                "z": 3,
                 "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
                 "embeds": [],
                 "isrelatedto": [
@@ -1571,7 +1591,7 @@
                 "target": {
                     "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
                 },
-                "z": 2
+                "z": 3
             },
             "9d43bda0-dd1c-49ae-9499-f27876114337": {
                 "source": {
@@ -1580,7 +1600,7 @@
                 "target": {
                     "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
                 },
-                "z": 2
+                "z": 3
             },
             "7bde4ae6-686a-41eb-812c-49c37e89349f": {
                 "source": {
@@ -1589,7 +1609,7 @@
                 "target": {
                     "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
                 },
-                "z": 2
+                "z": 3
             },
             "8a5bb457-a935-4c26-83f4-ba6aafdd813d": {
                 "size": {
@@ -1597,8 +1617,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 910,
-                    "y": 640
+                    "x": -30,
+                    "y": 100
                 },
                 "z": 1,
                 "embeds": []
@@ -1609,8 +1629,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 900,
-                    "y": 300
+                    "x": -620,
+                    "y": -30
                 },
                 "z": 1,
                 "embeds": [],
@@ -1631,8 +1651,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 840,
-                    "y": 550
+                    "x": -810,
+                    "y": 120
                 },
                 "z": 1,
                 "embeds": []
@@ -1679,10 +1699,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 840,
-                    "y": 450
+                    "x": -640,
+                    "y": 130
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": []
             },
             "d33f55ca-74c9-46f8-ab2e-c5e08f60139d": {
@@ -1709,10 +1729,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 710,
-                    "y": 400
+                    "x": -750,
+                    "y": 260
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
@@ -1751,10 +1771,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 990,
-                    "y": 300
+                    "x": -500,
+                    "y": -30
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
@@ -1766,10 +1786,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 1090,
-                    "y": 300
+                    "x": -380,
+                    "y": -30
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
@@ -1785,10 +1805,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 1210,
-                    "y": 400
+                    "x": -270,
+                    "y": -130
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": []
             },
             "614b665b-8a85-4d7d-9e93-af14f55e9a40": {
@@ -1797,10 +1817,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 1210,
-                    "y": 300
+                    "x": -270,
+                    "y": -20
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "4000cf92-50fe-4fa9-a609-a6fa5f9e322d",
@@ -1816,10 +1836,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 1210,
-                    "y": 500
+                    "x": -270,
+                    "y": -230
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "references": [
                     "0ef28748-109e-430b-9a58-15cc2fec2388"
@@ -1833,6 +1853,21 @@
                     "id": "0ef28748-109e-430b-9a58-15cc2fec2388"
                 },
                 "z": 11
+            },
+            "78467a28-e634-4785-93b1-1cfef8b3675f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -770,
+                    "y": -30
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "266c9d73-3ca4-43d0-b954-dcdf6990c671"
+                ]
             }
         }
     }
