@@ -85,7 +85,7 @@ if __name__ == '__main__':
         parameters = pb.get_parameters_dict()
         with open(persist_JSON_parameters_target, 'w') as stack_parameters:
             json.dump(parameters, stack_parameters)
-        with open(persist_BASH_parameters_target, 'w') as bash_variables:
+        with open(persist_BASH_parameters_target, 'a') as bash_variables:
             for key, value in parameters.items():
                 bash_variables.write('{key}="{value}"\n'.format(key=key, value=value.strip()))
 

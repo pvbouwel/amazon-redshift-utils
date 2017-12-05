@@ -61,6 +61,7 @@ r=$? && stop_step $r
 
 STEP_LABEL="Setup Python2.7 environment"
 start_step
+echo 'VIRTUAL_ENV_PY27_DIR="${HOME}/venv_py27_env1/"' >> ${HOME}/variables.sh
 source ${DIR}/variables.sh
 virtualenv-2.7 ${VIRTUAL_ENV_PY27_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
@@ -70,6 +71,7 @@ deactivate
 
 STEP_LABEL="Setup Python3.6 environment"
 start_step
+echo 'VIRTUAL_ENV_PY36_DIR="${HOME}/venv_py36_env1/"' >> ${HOME}/variables.sh
 source ${DIR}/variables.sh
 virtualenv-3.6 ${VIRTUAL_ENV_PY36_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
