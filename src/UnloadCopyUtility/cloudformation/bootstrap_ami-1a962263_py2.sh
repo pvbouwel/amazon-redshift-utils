@@ -87,7 +87,7 @@ source ${HOME}/variables.sh
 
 start_step "Create .pgpass files"
 cat "${HOME}/PASSWORD_KMS.txt" | base64 --decode >>"${HOME}/PASSWORD_KMS.bin" 2>>${STDERROR}
-CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
+CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://${HOME}/PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
 echo "${SourceClusterEndpointAddress}:${SourceClusterEndpointPort}:${SourceClusterDBName}:${SourceClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
 echo "${TargetClusterEndpointAddress}:${TargetClusterEndpointPort}:${TargetClusterDBName}:${TargetClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
 chmod 600  ${HOME}/.pgpass 2>>${STDERROR}
@@ -99,7 +99,7 @@ r=$? && stop_step $r
 start_step "Reset password of source cluster to CloudFormation Configuration"
 if [ "${CLUSTER_DECRYPTED_PASSWORD}" = "" ]
 then
-    CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
+    CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://${HOME}/PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
 fi
 aws redshift modify-cluster --cluster-identifier "${SourceClusterName}" --master-user-password "${CLUSTER_DECRYPTED_PASSWORD}" --region "${Region}"  >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
