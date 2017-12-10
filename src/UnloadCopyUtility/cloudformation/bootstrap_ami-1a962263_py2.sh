@@ -58,7 +58,7 @@ r=$? && stop_step $r
 
 start_step "Setup Python2.7 environment"
 echo 'VIRTUAL_ENV_PY27_DIR="${HOME}/venv_py27_env1/"' >> ${HOME}/variables.sh
-source ${DIR}/variables.sh
+source ${HOME}/variables.sh
 virtualenv-2.7 ${VIRTUAL_ENV_PY27_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
@@ -67,7 +67,7 @@ deactivate
 
 start_step "Setup Python3.6 environment"
 echo 'VIRTUAL_ENV_PY36_DIR="${HOME}/venv_py36_env1/"' >> ${HOME}/variables.sh
-source ${DIR}/variables.sh
+source ${HOME}/variables.sh
 virtualenv-3.6 ${VIRTUAL_ENV_PY36_DIR} >>${STDOUTPUT} 2>>${STDERROR}
 source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 pip install -r ${DIR}/requirements.txt >>${STDOUTPUT} 2>>${STDERROR}
@@ -81,7 +81,7 @@ python3 ${DIR}/get_stack_parameters.py >>${STDOUTPUT} 2>>${STDERROR}
 grep "TargetClusterEndpointPort" $HOME/stack_parameters.json &>/dev/null
 r=$? && stop_step $r
 
-source ${DIR}/variables.sh
+source ${HOME}/variables.sh
 
 start_step "Create .pgpass files"
 cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}
