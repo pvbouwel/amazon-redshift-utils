@@ -147,7 +147,7 @@ start_step "Create Admin view admin.v_generate_tbl_ddl on source if it does not 
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -f ${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql | grep "CREATE VIEW"
 r=$? && stop_step $r
 
-SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
+SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName ${HOME}/STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
 start_step "Await Redshift restore of source cluster (${SOURCE_CLUSTER_NAME})"
 max_minutes_to_wait=20
 minutes_waited=0
@@ -178,11 +178,10 @@ stop_scenario
 #Start running the scenario's
 for file in `find $DIR -type f -name 'run_test.sh'`
 do
- log_section_action "Loading scenario file $file"
  . ${file}
 done
 
 #Publish results
-echo "Publishing results to S3" >>${STDOUTPUT} 2>>${STDERROR}
-aws s3 cp ${STDOUTPUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
-aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/" >>${STDOUTPUT} 2>>${STDERROR}
+echo "Publishing results to S3"
+aws s3 cp ${STDOUTPUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
+aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
