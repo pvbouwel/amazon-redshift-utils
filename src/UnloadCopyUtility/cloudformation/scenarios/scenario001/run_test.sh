@@ -34,7 +34,7 @@ cat >${HOME}/scenario001.json <<EOF
 }
 EOF
 
-cat ${HOME}/scenario_001.json >>${STDOUTPUT} 2>>${STDERROR}
+cat ${HOME}/scenario001.json >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 start_step "Create DDL for table in target cluster"
@@ -51,8 +51,7 @@ r=$? && stop_step $r
 start_step "Run Unload Copy Utility"
 source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 cd ${HOME}/amazon-redshift-utils/src/UnloadCopyUtility && python3 redshift_unload_copy.py ${HOME}/scenario001.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
-EXPECTED_COUNT=`psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'count='||count(*) from ssb.dwdate;" | grep "count=[0-9]*"|awk -F= '{ print $2}'
-2556`
+EXPECTED_COUNT=`psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'count='||count(*) from ssb.dwdate;" | grep "count=[0-9]*"|awk -F= '{ print $2}'`
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'count='||count(*) from public.dwdate;" | grep "count=${EXPECTED_COUNT}" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 deactivate
