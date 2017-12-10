@@ -32,17 +32,18 @@ start_step "Await full stack bootstrap"
 STACK_NAME=`cat IAM_INFO.json | grep InstanceProfileArn | awk -F/ '{ print $2}'`
 max_minutes_to_wait=15
 minutes_waited=0
+return_code=0
 while [ 1 = 1 ]
 do
     if [ "${minutes_waited}" = "${max_minutes_to_wait}" ]
     then
-        stop_step 100
+        return_code=100
         break
     else
         aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME} | grep StackStatus | grep CREATE_COMPLETE &>/dev/null
         if [ "$?" = "0" ]
         then
-            stop_step 0
+            return_code=0
             break;
         else
             echo "`date` Stack not ready yet" >> ${STDOUTPUT}
@@ -51,9 +52,10 @@ do
         fi
     fi
 done
+stop_step $return_code
 
 start_step "Get Cloudformation Stack name (aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME})"
-aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME} >STACK_DETAILS.json 2>>${STDERROR}
+aws cloudformation describe-stacks --region ${REGION_NAME} --stack-name ${STACK_NAME} >${HOME}/STACK_DETAILS.json 2>>${STDERROR}
 r=$? && stop_step $r
 
 start_step "Setup Python2.7 environment"
@@ -84,12 +86,12 @@ r=$? && stop_step $r
 source ${HOME}/variables.sh
 
 start_step "Create .pgpass files"
-cat PASSWORD_KMS.txt | base64 --decode >>PASSWORD_KMS.bin 2>>${STDERROR}
+cat "${HOME}/PASSWORD_KMS.txt" | base64 --decode >>"${HOME}/PASSWORD_KMS.bin" 2>>${STDERROR}
 CLUSTER_DECRYPTED_PASSWORD=`aws kms decrypt --ciphertext-blob fileb://PASSWORD_KMS.bin --region ${REGION_NAME} | grep Plaintext | awk -F\" '{print $4}' | base64 --decode` >>${STDOUTPUT} 2>>${STDERROR}
 echo "${SourceClusterEndpointAddress}:${SourceClusterEndpointPort}:${SourceClusterDBName}:${SourceClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
 echo "${TargetClusterEndpointAddress}:${TargetClusterEndpointPort}:${TargetClusterDBName}:${TargetClusterMasterUsername}:${CLUSTER_DECRYPTED_PASSWORD}" >> ${HOME}/.pgpass 2>>${STDERROR}
 chmod 600  ${HOME}/.pgpass 2>>${STDERROR}
-#Only verify that there are 2 records next we have test for access
+#Only verify that there are 2 records next we have tests for access
 cat ${HOME}/.pgpass | grep -v "::"| wc -l | grep "^2$" >>/dev/null 2>>${STDERROR}
 r=$? && stop_step $r
 
@@ -103,15 +105,29 @@ aws redshift modify-cluster --cluster-identifier "${SourceClusterName}" --master
 r=$? && stop_step $r
 
 start_step "Await no more pending modified variables"
-return_code=1
-while [ "$return_code" != "0" ]
+max_minutes_to_wait=10
+minutes_waited=0
+return_code=0
+while [ 1 = 1 ]
 do
-  echo "There are variables to be modified on the cluster await cluster to be in sync"
-  sleep 20
-  aws redshift describe-clusters --cluster-identifier "${SourceClusterName}" --region "${Region}" | grep "\"PendingModifiedValues\": {}" >>/dev/null 2>>/dev/null
-  return_code=$?
+    if [ "${minutes_waited}" = "${max_minutes_to_wait}" ]
+    then
+        return_code=100
+        break
+    else
+        aws redshift describe-clusters --cluster-identifier "${SourceClusterName}" --region "${Region}" | grep "\"PendingModifiedValues\": {}" >>/dev/null 2>>/dev/null
+        if [ "$?" = "0" ]
+        then
+            return_code=0
+            break;
+        else
+            echo "`date` There are variables to be modified on the cluster await cluster to be in sync" >>${STDOUTPUT}
+            minutes_waited="$(( $minutes_waited + 1 ))"
+            sleep 60
+        fi
+    fi
 done
-r=$? && stop_step $r
+stop_step ${return_code}
 
 start_step "Test passwordless (.pgpass) access to source cluster"
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'result='||1;" | grep "result=1" >>${STDOUTPUT} 2>>${STDERROR}
@@ -135,17 +151,18 @@ SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName STACK_DETAILS.json | grep Outpu
 start_step "Await Redshift restore of source cluster (${SOURCE_CLUSTER_NAME})"
 max_minutes_to_wait=20
 minutes_waited=0
+return_code=0
 while [ 1 = 1 ]
 do
     if [ "${minutes_waited}" = "${max_minutes_to_wait}" ]
     then
-        stop_step 100
+        return_code=100
         break
     else
         aws redshift describe-clusters --cluster-identifier ${SOURCE_CLUSTER_NAME} --region ${REGION_NAME} | grep -A 5  RestoreStatus | grep "\"Status\"" | grep completed >>/dev/null
         if [ "$?" = "0" ]
         then
-            stop_step 0
+            return_code=0
             break;
         else
             echo "`date` Cluster restore not finished yet" >> ${STDOUTPUT}
@@ -154,6 +171,7 @@ do
         fi
     fi
 done
+stop_step ${return_code}
 
 stop_scenario
 
