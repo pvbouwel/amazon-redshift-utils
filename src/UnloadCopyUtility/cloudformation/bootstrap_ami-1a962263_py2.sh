@@ -8,6 +8,10 @@ scenario_result=0
 
 start_step "Get commit information for this test report"
 cd ${HOME}/amazon-redshift-utils
+echo "git remote -v" >>${STDOUTPUT} 2>>${STDERROR}
+git remote -v >>${STDOUTPUT} 2>>${STDERROR}
+echo "Git branch:`git branch | grep '^*' | tr -d '*'`" >>${STDOUTPUT} 2>>${STDERROR}
+
 nr_of_lines=$(( `git log | grep -n '^commit ' | head -n 2 | tail -n 1 | awk -F: '{print $1}'` - 1 )) 2>>${STDERROR}
 git log | head -n ${nr_of_lines} >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
@@ -183,5 +187,7 @@ done
 
 #Publish results
 echo "Publishing results to S3"
-aws s3 cp ${STDOUTPUT} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
-aws s3 cp ${STDERROR} "s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
+S3_PATH="s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
+aws s3 cp ${STDOUTPUT} ${S3_PATH}
+aws s3 cp ${STDERROR} ${S3_PATH}
+aws s3 cp /var/log/cloud-init-output.log ${S3_PATH}
