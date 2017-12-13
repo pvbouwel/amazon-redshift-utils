@@ -2,8 +2,8 @@
 
 source ${HOME}/variables.sh
 
-start_scenario "scenario001: Perform Unload Copy with password encrypted using KMS, expect target location to be correct"
-start_step "Create Unload Copy Manifest"
+start_scenario "Perform Unload Copy with password encrypted using KMS, expect target location to be correct"
+start_step "Create configuration JSON to copy ssb.dwdate of source cluster to public.dwdate on target cluster"
 cat >${HOME}/scenario001.json <<EOF
 {
   "unloadSource": {
@@ -37,13 +37,15 @@ EOF
 cat ${HOME}/scenario001.json >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-start_step "Create DDL for table in target cluster"
+start_step "Generate DDL for table public.dwdate on target cluster"
 #Extract DDL
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select ddl from admin.v_generate_tbl_ddl where schemaname='ssb' and tablename='dwdate';" | awk '/CREATE TABLE/{flag=1}/ ;$/{flag=0}flag' | sed 's/ssb/public/' >${HOME}/scenario001.ddl.sql
-r=$? && stop_step $r
+increment_step_result $?
+cat ${HOME}/scenario001.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
+increment_step_result $?
+stop_step ${STEP_RESULT}
 
-start_step "Create table in target cluster"
-cat ${HOME}/scenario001.ddl.sql >>${STDOUTPUT}
+start_step "Create table public.dwdate in target cluster"
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/scenario001.ddl.sql | grep "CREATE TABLE"
 r=$? && stop_step $r
 

@@ -5,6 +5,7 @@ STDERROR="${HOME}/output.error"
 LABELS=""
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SCENARIO_RESULT=0
+STEP_RESULT=0
 
 function number_of_labels() {
    echo -n "${LABELS}" | tr '|' '\n' | wc -l
@@ -49,8 +50,15 @@ function start_for_type() {
 
 function start_step() {
   LABEL="$1"
+  STEP_RESULT=0
   start_for_type "STEP" "${LABEL}"
 }
+
+function increment_step_result() {
+  AMOUNT_TO_ADD="$1"
+  STEP_RESULT="$(( ${STEP_RESULT} + ${AMOUNT_TO_ADD} ))"
+}
+
 function start_scenario() {
   LABEL="$1"
   SCENARIO_RESULT=0
@@ -73,6 +81,7 @@ function stop_step() {
   SCENARIO_RESULT="$(( ${SCENARIO_RESULT} + ${RETURN_CODE} ))"
   stop_for_type_with_return_code "STEP" ${RETURN_CODE}
 }
+
 function stop_scenario() {
   RETURN_CODE="${SCENARIO_RESULT}"
   stop_for_type_with_return_code "SCENARIO" ${RETURN_CODE}
