@@ -5,7 +5,7 @@ source ${HOME}/variables.sh
 DESCRIPTION="Perform Unload Copy with automatic password retrieval."
 DESCRIPTION="${DESCRIPTION}Use a Python generated key for unload/copy rather than KMS generated key."
 DESCRIPTION="${DESCRIPTION}Expect target location to be correct."
-DESCRIPTION="${DESCRIPTION}Use Python2. Should fail for environment without pycrypto."
+DESCRIPTION="${DESCRIPTION}Use Python3."
 
 start_scenario "${DESCRIPTION}"
 
@@ -22,7 +22,7 @@ cat >${HOME}/scenario003.json <<EOF
   },
   "s3Staging": {
     "aws_iam_role": "${S3CopyRole}",
-    "path": "s3://${CopyUnloadBucket}/scenario003/",
+    "path": "s3://${CopyUnloadBucket}/scenario004/",
     "deleteOnSuccess": "True",
     "region": "eu-west-1",
     "kmsGeneratedKey": "False"
@@ -38,14 +38,14 @@ cat >${HOME}/scenario003.json <<EOF
 }
 EOF
 
-cat ${HOME}/scenario003.json >>${STDOUTPUT} 2>>${STDERROR}
+cat ${HOME}/scenario004.json >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 start_step "Generate DDL for table public.dwdate on target cluster"
 #Extract DDL
-psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select ddl from admin.v_generate_tbl_ddl where schemaname='ssb' and tablename='dwdate';" | awk '/CREATE TABLE/{flag=1}/ ;$/{flag=0}flag' | sed 's/ssb/public/' >${HOME}/scenario003.ddl.sql 2>>${STDERROR}
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select ddl from admin.v_generate_tbl_ddl where schemaname='ssb' and tablename='dwdate';" | awk '/CREATE TABLE/{flag=1}/ ;$/{flag=0}flag' | sed 's/ssb/public/' >${HOME}/scenario004.ddl.sql 2>>${STDERROR}
 increment_step_result $?
-cat ${HOME}/scenario003.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
+cat ${HOME}/scenario004.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
 increment_step_result $?
 stop_step ${STEP_RESULT}
 
@@ -54,13 +54,13 @@ psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${Tar
 r=$? && stop_step $r
 
 start_step "Create table public.dwdate in target cluster"
-psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/scenario003.ddl.sql | grep "CREATE TABLE" >>${STDOUTPUT} 2>>${STDERROR}
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/scenario004.ddl.sql | grep "CREATE TABLE" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 
 start_step "Run Unload Copy Utility"
-source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
-cd ${HOME}/amazon-redshift-utils/src/UnloadCopyUtility && python2 redshift_unload_copy.py ${HOME}/scenario003.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
+source ${VIRTUAL_ENV_PY36_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
+cd ${HOME}/amazon-redshift-utils/src/UnloadCopyUtility && python2 redshift_unload_copy.py ${HOME}/scenario004.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
 EXPECTED_COUNT=`psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'count='||count(*) from ssb.dwdate;" | grep "count=[0-9]*"|awk -F= '{ print $2}'` >>${STDOUTPUT} 2>>${STDERROR}
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'count='||count(*) from public.dwdate;" | grep "count=${EXPECTED_COUNT}" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
