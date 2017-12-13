@@ -2,7 +2,7 @@
 
 source ${HOME}/variables.sh
 
-start_scenario "Perform Unload Copy with automatic password retrieval, expect target location to be correct on Python2, this has a dependency on scenario001"
+start_scenario "Perform Unload Copy with automatic password retrieval, expect target location to be correct on Python2"
 
 start_step "Create configuration JSON to copy ssb.dwdate of source cluster to public.dwdate on target cluster"
 cat >${HOME}/scenario003.json <<EOF
@@ -36,8 +36,20 @@ EOF
 cat ${HOME}/scenario003.json >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-start_step "Truncate the target table from previous scenario."
-psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "TRUNCATE TABLE public.dwdate;" 2>>${STDERROR} | grep "TRUNCATE TABLE" >>${STDOUTPUT} 2>>${STDERROR}
+start_step "Generate DDL for table public.dwdate on target cluster"
+#Extract DDL
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select ddl from admin.v_generate_tbl_ddl where schemaname='ssb' and tablename='dwdate';" | awk '/CREATE TABLE/{flag=1}/ ;$/{flag=0}flag' | sed 's/ssb/public/' >${HOME}/scenario003.ddl.sql
+increment_step_result $?
+cat ${HOME}/scenario003.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
+increment_step_result $?
+stop_step ${STEP_RESULT}
+
+start_step "Drop table public.dwdate in target cluster if it exists"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "DROP TABLE IF EXISTS public.dwdate;" 2>>${STDERROR} | grep "DROP TABLE"
+r=$? && stop_step $r
+
+start_step "Create table public.dwdate in target cluster"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/scenario003.ddl.sql | grep "CREATE TABLE"
 r=$? && stop_step $r
 
 

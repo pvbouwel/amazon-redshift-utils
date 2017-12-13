@@ -45,6 +45,11 @@ cat ${HOME}/scenario001.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
 increment_step_result $?
 stop_step ${STEP_RESULT}
 
+start_step "Drop table public.dwdate in target cluster if it exists"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "DROP TABLE IF EXISTS public.dwdate;" 2>>${STDERROR} | grep "DROP TABLE"
+r=$? && stop_step $r
+
+
 start_step "Create table public.dwdate in target cluster"
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/scenario001.ddl.sql | grep "CREATE TABLE"
 r=$? && stop_step $r
