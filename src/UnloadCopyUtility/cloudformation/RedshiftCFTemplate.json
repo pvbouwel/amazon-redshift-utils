@@ -87,6 +87,15 @@
             "Description": "The bucket in which to put the test report (expected to be in the same region)",
             "Type": "String",
             "Default": "copy-unload"
+        },
+        "StackAutoDelete": {
+            "Description": "Should Cloudformation automatically cleanup the stack again?",
+            "Type": "String",
+            "Default": "Yes",
+            "AllowedValues": [
+                "Yes",
+                "No"
+            ]
         }
     },
     "Conditions": {
@@ -355,6 +364,7 @@
                                 },
                                 " --query CiphertextBlob",
                                 " --output text >PASSWORD_KMS.txt\n",
+                                "echo 'AUTODELETE=", { "Ref": "StackAutoDelete" }, "' >>/home/ec2-user/variables.sh\n",
                                 "chown -R ec2-user /home/ec2-user\n",
                                 "su - ec2-user -c 'bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/cloudformation/bootstrap_",
                                 {
@@ -768,7 +778,8 @@
                                 "cloudformation:GetTemplateSummary",
                                 "cloudformation:ListChangeSets",
                                 "cloudformation:DescribeStacks",
-                                "cloudformation:ListStackResources"
+                                "cloudformation:ListStackResources",
+                                "cloudformation:DeleteStack"
                             ],
                             "Resource": {
                                 "Fn::Join": [

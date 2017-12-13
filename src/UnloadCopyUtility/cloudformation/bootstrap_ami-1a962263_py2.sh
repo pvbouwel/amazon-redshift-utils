@@ -191,3 +191,9 @@ S3_PATH="s3://${ReportBucket}/`date +%Y/%m/%d/%H/%M`/"
 aws s3 cp ${STDOUTPUT} ${S3_PATH}
 aws s3 cp ${STDERROR} ${S3_PATH}
 aws s3 cp /var/log/cloud-init-output.log ${S3_PATH}
+
+if [ "$AUTODELETE" = "Yes" ]
+then
+    echo "Auto-delete stack is yes so start the cleanup"
+    aws cloudformation delete-stack --region ${REGION_NAME} --stack-name ${STACK_NAME}
+fi
