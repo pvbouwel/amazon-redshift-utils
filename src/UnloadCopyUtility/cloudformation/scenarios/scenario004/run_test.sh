@@ -10,7 +10,7 @@ DESCRIPTION="${DESCRIPTION}Use Python3."
 start_scenario "${DESCRIPTION}"
 
 start_step "Create configuration JSON to copy ssb.dwdate of source cluster to public.dwdate on target cluster"
-cat >${HOME}/scenario003.json <<EOF
+cat >${HOME}/scenario004.json <<EOF
 {
   "unloadSource": {
     "clusterEndpoint": "${SourceClusterEndpointAddress}",
