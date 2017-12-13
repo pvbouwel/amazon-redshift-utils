@@ -2,7 +2,12 @@
 
 source ${HOME}/variables.sh
 
-start_scenario "Perform Unload Copy with automatic password retrieval, expect target location to be correct on Python2"
+DESCRIPTION="Perform Unload Copy with automatic password retrieval.\n"
+DESCRIPTION="${DESCRIPTION}Use a Python generated key for unload/copy rather than KMS generated key."
+DESCRIPTION="${DESCRIPTION}Expect target location to be correct."
+DESCRIPTION="${DESCRIPTION}Use Python2."
+
+start_scenario "${DESCRIPTION}"
 
 start_step "Create configuration JSON to copy ssb.dwdate of source cluster to public.dwdate on target cluster"
 cat >${HOME}/scenario003.json <<EOF
@@ -20,7 +25,7 @@ cat >${HOME}/scenario003.json <<EOF
     "path": "s3://${CopyUnloadBucket}/scenario1/",
     "deleteOnSuccess": "True",
     "region": "eu-west-1",
-    "kmsGeneratedKey": "True"
+    "kmsGeneratedKey": "False"
   },
   "copyTarget": {
     "clusterEndpoint": "${TargetClusterEndpointAddress}",
