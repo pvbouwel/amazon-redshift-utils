@@ -1,7 +1,9 @@
-from unittest import TestCase
-from botocore.stub import Stubber
 import json
-from cloudformation.get_stack_parameters import StackParametersBuilder
+from unittest import TestCase
+
+from botocore.stub import Stubber
+
+from tests.cloudformation.get_stack_parameters import StackParametersBuilder
 
 
 class StackParametersBuilderUnittests(TestCase):
