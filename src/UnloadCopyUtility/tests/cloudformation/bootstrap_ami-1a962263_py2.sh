@@ -25,7 +25,7 @@ sudo yum install -y postgresql postgresql-devel gcc python-devel python27-virtua
 r=$? && stop_step $r
 
 start_step "Get IAM_INFO.json"
-curl http://169.254.169.254/latest/meta-data/iam/info > IAM_INFO.json 2>>${STDERROR}
+curl http://169.254.169.254/latest/meta-data/iam/info > ${HOME}/IAM_INFO.json 2>>${STDERROR}
 echo "Result=`cat IAM_INFO.json`" >>${STDOUTPUT} 2>>${STDERROR}
 cat IAM_INFO.json | grep Success &>>/dev/null
 r=$? && stop_step $r
@@ -33,7 +33,7 @@ r=$? && stop_step $r
 REGION_NAME=`curl http://169.254.169.254/latest/meta-data/hostname | awk -F. '{print $2}'`
 
 start_step "Await full stack bootstrap"
-STACK_NAME=`cat IAM_INFO.json | grep InstanceProfileArn | awk -F/ '{ print $2}'`
+STACK_NAME=`cat ${HOME}/IAM_INFO.json | grep InstanceProfileArn | awk -F/ '{ print $2}'`
 max_minutes_to_wait=15
 minutes_waited=0
 return_code=0
@@ -194,5 +194,6 @@ aws s3 cp /var/log/cloud-init-output.log ${S3_PATH}
 
 if [ "$AUTODELETE" = "Yes" ]
 then
-    echo "Auto-delete requires permissions that this instance does not have, but stack will rollback and fail instead, report is saved anyway. "
+    echo "Auto-delete stack is yes so start the cleanup"
+    aws cloudformation delete-stack --region ${REGION_NAME} --stack-name ${STACK_NAME}
 fi
