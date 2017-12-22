@@ -60,7 +60,7 @@
         "SSHKeyForEc2": {
             "Description": "SSH key used for authentication to EC2 host",
             "Type": "AWS::EC2::KeyPair::KeyName",
-            "Default": "global",
+            "Default": "EC2key",
             "ConstraintDescription": "Must be a valid EC2 Keypair name."
         },
         "AMIForEC2": {
@@ -76,12 +76,12 @@
         "GitHubUrl": {
             "Description": "GitHub Url of repro to be bootstrapped on Ec2",
             "Type": "String",
-            "Default": "https://github.com/pvbouwel/amazon-redshift-utils.git"
+            "Default": "https://github.com/awslabs/amazon-redshift-utils.git"
         },
         "GitHubBranch": {
             "Description": "The branch to checkout for the repro to be bootstrapped on Ec2",
             "Type": "String",
-            "Default": "pvbouwel-test-rs-unload-copy"
+            "Default": "master"
         },
         "ReportBucket": {
             "Description": "The bucket in which to put the test report (expected to be in the same region)",
@@ -89,7 +89,7 @@
             "Default": "copy-unload"
         },
         "StackAutoDelete": {
-            "Description": "Should Cloudformation automatically cleanup the stack again?",
+            "Description": "Should Cloudformation automatically cleanup the stack again? It only rolls back the stack but that helps saving costs.",
             "Type": "String",
             "Default": "Yes",
             "AllowedValues": [
@@ -105,6 +105,14 @@
                     "Ref": "ClusterType"
                 },
                 "multi-node"
+            ]
+        },
+        "isAutoRollback": {
+            "Fn::Equals": [
+                {
+                    "Ref": "StackAutoDelete"
+                },
+                "Yes"
             ]
         }
     },
@@ -364,13 +372,22 @@
                                 },
                                 " --query CiphertextBlob",
                                 " --output text >PASSWORD_KMS.txt\n",
-                                "echo 'AUTODELETE=", { "Ref": "StackAutoDelete" }, "' >>/home/ec2-user/variables.sh\n",
+                                "echo 'AUTODELETE=",
+                                {
+                                    "Ref": "StackAutoDelete"
+                                },
+                                "' >>/home/ec2-user/variables.sh\n",
                                 "chown -R ec2-user /home/ec2-user\n",
                                 "su - ec2-user -c 'bash /home/ec2-user/amazon-redshift-utils/src/UnloadCopyUtility/tests/cloudformation/bootstrap_",
                                 {
                                     "Ref": "AMIForEC2"
                                 },
-                                "_py2.sh'\n"
+                                "_py2.sh'\n",
+                                "curl -T /tmp/a \"",
+                                {
+                                    "Ref": "WaitHandleForTests"
+                                },
+                                "\"\n"
                             ]
                         ]
                     }
@@ -704,6 +721,9 @@
             "Properties": {
                 "Roles": [
                     {
+                        "Ref": "S3Role"
+                    },
+                    {
                         "Ref": "EC2InstanceRole"
                     }
                 ],
@@ -736,14 +756,28 @@
                                 "kms:ScheduleKeyDeletion",
                                 "kms:GenerateDataKey",
                                 "kms:ReEncryptTo",
-                                "kms:DescribeKey"
+                                "kms:DescribeKey",
+                                "kms:DeleteAlias"
                             ],
-                            "Resource": {
-                                "Fn::GetAtt": [
-                                    "KMSKey",
-                                    "Arn"
-                                ]
-                            }
+                            "Resource": [
+                                {
+                                    "Fn::GetAtt": [
+                                        "KMSKey",
+                                        "Arn"
+                                    ]
+                                },
+                                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "arn:aws:kms:*:*:",
+                                            {
+                                                "Ref": "KMSALiasRedshiftUnloadCopyUtility"
+                                            }
+                                        ]
+                                    ]
+                                }
+                            ]
                         }
                     ]
                 }
@@ -752,7 +786,10 @@
                 "AWS::CloudFormation::Designer": {
                     "id": "614b665b-8a85-4d7d-9e93-af14f55e9a40"
                 }
-            }
+            },
+            "DependsOn": [
+                "KMSALiasRedshiftUnloadCopyUtility"
+            ]
         },
         "CloudFormationPolicy": {
             "Type": "AWS::IAM::Policy",
@@ -850,7 +887,8 @@
                                 "redshift:GetClusterCredentials",
                                 "redshift:JoinGroup",
                                 "redshift:CreateClusterUser",
-                                "redshift:ModifyCluster"
+                                "redshift:ModifyCluster",
+                                "redshift:DeleteCluster"
                             ],
                             "Resource": [
                                 {
@@ -1202,6 +1240,55 @@
                     "id": "e2271e3c-ff91-48e3-b71e-e54418d8ffde"
                 }
             }
+        },
+        "WaitHandleForTests": {
+            "Type": "AWS::CloudFormation::WaitConditionHandle",
+            "Properties": {},
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "61e3c578-5e67-4a61-b03f-ec7d52fec342"
+                }
+            }
+        },
+        "TestWaitCondition": {
+            "Type": "AWS::CloudFormation::WaitCondition",
+            "Properties": {
+                "Handle": {
+                    "Ref": "WaitHandleForTests"
+                },
+                "Timeout": "7200"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "575213c8-0d4e-478a-8d49-3a5ece44650a"
+                }
+            }
+        },
+        "EC2FailingInstanceToAutoRollbackStack": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "IamInstanceProfile": {
+                    "Ref": "Ec2InstanceProfile"
+                },
+                "KeyName": {
+                    "Ref": "SSHKeyForEc2"
+                },
+                "ImageId": {
+                    "Ref": "AMIForEC2"
+                },
+                "SecurityGroupIds": [
+                    "sg-abcdef12"
+                ]
+            },
+            "Condition": "isAutoRollback",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "41d4a2b3-84b0-49f2-87da-161a79e77655"
+                }
+            },
+            "DependsOn": [
+                "TestWaitCondition"
+            ]
         }
     },
     "Outputs": {
@@ -1358,14 +1445,32 @@
                 "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
                 "embeds": [
                     "522f4e05-7243-4e28-85e9-06f610e309cf"
+                ],
+                "iscontainedinside": [
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d"
                 ]
             },
             "2ef8585c-caae-484a-a62d-0baf9c31d8ce": {
                 "source": {
-                    "id": "06f22f37-0ad0-4a3d-8692-9028b2092789"
+                    "id": "f63b650b-a467-4002-b732-39c9a67cd76d"
                 },
                 "target": {
-                    "id": "f63b650b-a467-4002-b732-39c9a67cd76d"
+                    "id": "06f22f37-0ad0-4a3d-8692-9028b2092789"
                 },
                 "z": 1
             },
@@ -1381,8 +1486,26 @@
                 "z": 3,
                 "parent": "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
                 "embeds": [],
-                "references": [
+                "isassociatedwith": [
                     "06f22f37-0ad0-4a3d-8692-9028b2092789"
+                ],
+                "iscontainedinside": [
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad",
+                    "dfc5a36e-3ece-4e3b-8051-dae96a4e4bad"
                 ],
                 "dependson": [
                     "2ef8585c-caae-484a-a62d-0baf9c31d8ce"
@@ -1398,7 +1521,10 @@
                     "y": 570
                 },
                 "z": 0,
-                "embeds": []
+                "embeds": [],
+                "iscontainedinside": [
+                    "f63b650b-a467-4002-b732-39c9a67cd76d"
+                ]
             },
             "943687ae-e88e-41e4-96b0-0a9a0c45adc0": {
                 "size": {
@@ -1414,6 +1540,24 @@
                 "embeds": [
                     "ad2e4fc6-135b-460c-beed-209c5cfffb6b",
                     "c3b7906b-b128-4741-acaa-f3d9b577f3ca"
+                ],
+                "iscontainedinside": [
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d"
                 ]
             },
             "b65ceb8f-f750-4b8d-917e-1aee250b1657": {
@@ -1442,6 +1586,24 @@
                 ],
                 "isassociatedwith": [
                     "943687ae-e88e-41e4-96b0-0a9a0c45adc0"
+                ],
+                "iscontainedinside": [
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
+                    "943687ae-e88e-41e4-96b0-0a9a0c45adc0"
                 ]
             },
             "4b98dffa-20b8-476f-9435-d46f1070a51b": {
@@ -1469,13 +1631,29 @@
                 "parent": "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
                 "embeds": [],
                 "isassociatedwith": [
-                    "c077a6bc-3d4c-4886-b95d-a73b93066e88"
+                    "c077a6bc-3d4c-4886-b95d-a73b93066e88",
+                    "4000cf92-50fe-4fa9-a609-a6fa5f9e322d"
+                ],
+                "iscontainedinside": [
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca"
                 ],
                 "dependson": [
                     "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                ],
-                "isrelatedto": [
-                    "4000cf92-50fe-4fa9-a609-a6fa5f9e322d"
                 ]
             },
             "ad2e4fc6-135b-460c-beed-209c5cfffb6b": {
@@ -1492,34 +1670,8 @@
                 "embeds": [],
                 "dependson": [
                     "943687ae-e88e-41e4-96b0-0a9a0c45adc0",
-                    "266c9d73-3ca4-43d0-b954-dcdf6990c671",
-                    "e14cc528-132e-4f54-9d00-30d404865923",
-                    "c077a6bc-3d4c-4886-b95d-a73b93066e88"
-                ],
-                "isrelatedto": [
-                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
-                    "e14cc528-132e-4f54-9d00-30d404865923",
-                    "c077a6bc-3d4c-4886-b95d-a73b93066e88",
-                    "388bd912-1f42-44dd-be37-05edfffbffe0"
+                    "266c9d73-3ca4-43d0-b954-dcdf6990c671"
                 ]
-            },
-            "8daba1dd-dc68-4e47-83e1-4c82c59eebc3": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "943687ae-e88e-41e4-96b0-0a9a0c45adc0"
-                },
-                "z": 11
-            },
-            "afe988c8-988d-4da5-a347-b43774352287": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "e14cc528-132e-4f54-9d00-30d404865923"
-                },
-                "z": 13
             },
             "305bfec0-0886-4f27-ae4c-e77620bfae73": {
                 "size": {
@@ -1534,23 +1686,30 @@
                 "parent": "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
                 "embeds": [],
                 "isassociatedwith": [
-                    "c077a6bc-3d4c-4886-b95d-a73b93066e88"
+                    "c077a6bc-3d4c-4886-b95d-a73b93066e88",
+                    "4000cf92-50fe-4fa9-a609-a6fa5f9e322d"
+                ],
+                "iscontainedinside": [
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca",
+                    "c3b7906b-b128-4741-acaa-f3d9b577f3ca"
                 ],
                 "dependson": [
                     "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                ],
-                "isrelatedto": [
-                    "4000cf92-50fe-4fa9-a609-a6fa5f9e322d"
                 ]
-            },
-            "3c1b711c-4935-4b7d-8918-9f19bdaff107": {
-                "source": {
-                    "id": "305bfec0-0886-4f27-ae4c-e77620bfae73"
-                },
-                "target": {
-                    "id": "e14cc528-132e-4f54-9d00-30d404865923"
-                },
-                "z": 4
             },
             "c077a6bc-3d4c-4886-b95d-a73b93066e88": {
                 "size": {
@@ -1564,36 +1723,24 @@
                 "z": 3,
                 "parent": "f63b650b-a467-4002-b732-39c9a67cd76d",
                 "embeds": [],
-                "isrelatedto": [
-                    "c077a6bc-3d4c-4886-b95d-a73b93066e88"
+                "iscontainedinside": [
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d",
+                    "f63b650b-a467-4002-b732-39c9a67cd76d"
                 ]
-            },
-            "68542a78-0652-49cc-81e7-1356b6eb991d": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
-                },
-                "z": 4
-            },
-            "39ee55bf-3f19-46ff-b5b7-ba9a827db81b": {
-                "source": {
-                    "id": "e92d8375-62a1-4cff-97b6-dcc35bd9b402"
-                },
-                "target": {
-                    "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
-                },
-                "z": 5
-            },
-            "5beb23cd-62e9-4d03-b5f3-7779f794c703": {
-                "source": {
-                    "id": "305bfec0-0886-4f27-ae4c-e77620bfae73"
-                },
-                "target": {
-                    "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
-                },
-                "z": 6
             },
             "36bc05ce-e80e-468d-ac67-46fe84c08c54": {
                 "source": {
@@ -1648,12 +1795,6 @@
                 "isassociatedwith": [
                     "4000cf92-50fe-4fa9-a609-a6fa5f9e322d",
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                ],
-                "dependson": [
-                    "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                ],
-                "isrelatedto": [
-                    "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
                 ]
             },
             "4000cf92-50fe-4fa9-a609-a6fa5f9e322d": {
@@ -1668,42 +1809,6 @@
                 "z": 1,
                 "embeds": []
             },
-            "1f447718-092a-431e-b8cb-0697254136ce": {
-                "source": {
-                    "id": "4d12d15a-a2ca-426e-8aef-84d7c000cc3d"
-                },
-                "target": {
-                    "id": "4000cf92-50fe-4fa9-a609-a6fa5f9e322d"
-                },
-                "z": 4
-            },
-            "33532f88-980f-41de-8545-a3dacd2f6b29": {
-                "source": {
-                    "id": "4d12d15a-a2ca-426e-8aef-84d7c000cc3d"
-                },
-                "target": {
-                    "id": "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                },
-                "z": 11
-            },
-            "8198ad25-7067-47ef-b43f-ca7cbab8cc1a": {
-                "source": {
-                    "id": "e92d8375-62a1-4cff-97b6-dcc35bd9b402"
-                },
-                "target": {
-                    "id": "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                },
-                "z": 11
-            },
-            "bae6f723-5730-4ad1-88ed-75362aed7f5b": {
-                "source": {
-                    "id": "305bfec0-0886-4f27-ae4c-e77620bfae73"
-                },
-                "target": {
-                    "id": "8a5bb457-a935-4c26-83f4-ba6aafdd813d"
-                },
-                "z": 12
-            },
             "266c9d73-3ca4-43d0-b954-dcdf6990c671": {
                 "size": {
                     "width": 60,
@@ -1716,32 +1821,14 @@
                 "z": 1,
                 "embeds": []
             },
-            "d33f55ca-74c9-46f8-ab2e-c5e08f60139d": {
-                "source": {
-                    "id": "4d12d15a-a2ca-426e-8aef-84d7c000cc3d"
-                },
-                "target": {
-                    "id": "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                },
-                "z": 4
-            },
-            "fc153394-7cdd-4df5-8d65-7b98988dc14d": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                },
-                "z": 5
-            },
             "388bd912-1f42-44dd-be37-05edfffbffe0": {
                 "size": {
                     "width": 60,
                     "height": 60
                 },
                 "position": {
-                    "x": -750,
-                    "y": 260
+                    "x": -640,
+                    "y": 230
                 },
                 "z": 1,
                 "embeds": [],
@@ -1749,40 +1836,13 @@
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
                 ]
             },
-            "d5648be8-66c0-47d6-af97-beb2d69ba4d0": {
-                "source": {
-                    "id": "388bd912-1f42-44dd-be37-05edfffbffe0"
-                },
-                "target": {
-                    "id": "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                },
-                "z": 6
-            },
-            "54fa5fed-07bf-4acc-b417-5e9e28d7ed7e": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "e14cc528-132e-4f54-9d00-30d404865923"
-                },
-                "z": 11
-            },
-            "62705989-7357-4e07-b041-63dfcb430652": {
-                "source": {
-                    "id": "ad2e4fc6-135b-460c-beed-209c5cfffb6b"
-                },
-                "target": {
-                    "id": "c077a6bc-3d4c-4886-b95d-a73b93066e88"
-                },
-                "z": 12
-            },
             "1db48044-3eb4-4afc-a92c-9c126cacdf9e": {
                 "size": {
                     "width": 60,
                     "height": 60
                 },
                 "position": {
-                    "x": -500,
+                    "x": -530,
                     "y": -30
                 },
                 "z": 1,
@@ -1804,10 +1864,6 @@
                 "embeds": [],
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                ],
-                "isrelatedto": [
-                    "e92d8375-62a1-4cff-97b6-dcc35bd9b402",
-                    "305bfec0-0886-4f27-ae4c-e77620bfae73"
                 ]
             },
             "0ef28748-109e-430b-9a58-15cc2fec2388": {
@@ -1816,7 +1872,7 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -270,
+                    "x": -190,
                     "y": -130
                 },
                 "z": 1,
@@ -1828,17 +1884,14 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -270,
-                    "y": -20
+                    "x": -280,
+                    "y": 30
                 },
                 "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "4000cf92-50fe-4fa9-a609-a6fa5f9e322d",
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
-                ],
-                "isrelatedto": [
-                    "0ef28748-109e-430b-9a58-15cc2fec2388"
                 ]
             },
             "e2271e3c-ff91-48e3-b71e-e54418d8ffde": {
@@ -1847,23 +1900,14 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -270,
-                    "y": -230
+                    "x": -300,
+                    "y": -130
                 },
                 "z": 1,
                 "embeds": [],
-                "references": [
+                "isassociatedwith": [
                     "0ef28748-109e-430b-9a58-15cc2fec2388"
                 ]
-            },
-            "b4dd6a0f-3904-4dc9-a443-9f977e1b8ae0": {
-                "source": {
-                    "id": "e2271e3c-ff91-48e3-b71e-e54418d8ffde"
-                },
-                "target": {
-                    "id": "0ef28748-109e-430b-9a58-15cc2fec2388"
-                },
-                "z": 11
             },
             "78467a28-e634-4785-93b1-1cfef8b3675f": {
                 "size": {
@@ -1872,12 +1916,54 @@
                 },
                 "position": {
                     "x": -770,
-                    "y": -30
+                    "y": -20
                 },
                 "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "266c9d73-3ca4-43d0-b954-dcdf6990c671"
+                ]
+            },
+            "61e3c578-5e67-4a61-b03f-ec7d52fec342": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -1360,
+                    "y": 690
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "575213c8-0d4e-478a-8d49-3a5ece44650a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -1510,
+                    "y": 690
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "61e3c578-5e67-4a61-b03f-ec7d52fec342"
+                ]
+            },
+            "41d4a2b3-84b0-49f2-87da-161a79e77655": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -1510,
+                    "y": 280
+                },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "575213c8-0d4e-478a-8d49-3a5ece44650a"
                 ]
             }
         }

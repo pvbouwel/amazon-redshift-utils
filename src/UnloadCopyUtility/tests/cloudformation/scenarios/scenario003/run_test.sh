@@ -63,7 +63,22 @@ source ${VIRTUAL_ENV_PY27_DIR}/bin/activate >>${STDOUTPUT} 2>>${STDERROR}
 cd ${HOME}/amazon-redshift-utils/src/UnloadCopyUtility && python2 redshift_unload_copy.py ${HOME}/scenario003.json eu-west-1 >>${STDOUTPUT} 2>>${STDERROR}
 EXPECTED_COUNT=`psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c "select 'count='||count(*) from ssb.dwdate;" | grep "count=[0-9]*"|awk -F= '{ print $2}'` >>${STDOUTPUT} 2>>${STDERROR}
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "select 'count='||count(*) from public.dwdate;" | grep "count=${EXPECTED_COUNT}" >>${STDOUTPUT} 2>>${STDERROR}
-r=$? && stop_step $r
+r=$?
+if [ "$r" = "0" ]
+then
+  echo "Unload Copy Utility is expected to fail with return code one but return code was 0 in this case."
+  echo "Change result to 2 to make sure the test failed."
+  r=2
+fi
+if [ "$r" = "1" ]
+then
+  echo "Unload Copy Utility is expected to fail with return code one in this case."
+  echo "Change result to 0 to make sure test passes."
+  r=0
+fi
+stop_step $r
+
+
 deactivate
 
 stop_scenario

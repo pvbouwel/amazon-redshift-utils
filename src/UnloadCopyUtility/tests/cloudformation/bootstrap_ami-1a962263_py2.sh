@@ -194,6 +194,5 @@ aws s3 cp /var/log/cloud-init-output.log ${S3_PATH}
 
 if [ "$AUTODELETE" = "Yes" ]
 then
-    echo "Auto-delete stack is yes so start the cleanup"
-    aws cloudformation delete-stack --region ${REGION_NAME} --stack-name ${STACK_NAME}
+    echo "Auto-delete requires permissions that this instance does not have, but stack will rollback and fail instead, report is saved anyway. "
 fi
