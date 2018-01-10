@@ -17,7 +17,10 @@ Unittests can only be ran in python3 due to dependencies
 """
 from unittest import TestCase
 from unittest.mock import MagicMock
-from util.RedshiftCluster import RedshiftCluster
+from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING
+from util.redshift_cluster import RedshiftCluster
+from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL
+from util.resources import DBResource
 import redshift_unload_copy
 import datetime
 import time
@@ -59,3 +62,74 @@ class TestRedshiftUnloadCopy(TestCase):
         self.assertFalse(rs_cluster.is_temporary_credential_expired())
         time.sleep(0.4)
         self.assertTrue(rs_cluster.is_temporary_credential_expired())
+
+    def test_construction_of_get_query_sql_text_with_parameters_replaced(self):
+        cluster = RedshiftCluster(cluster_endpoint='test')
+        dbName = 'testdb'
+        cluster.set_db(dbName)
+        sql = DBResource(rs_cluster=cluster).get_query_sql_text_with_parameters_replaced(GET_DATABASE_NAME_OWNER_ACL)
+        expected_sql = GET_DATABASE_NAME_OWNER_ACL.format(db=dbName)
+        self.assertEquals(sql, expected_sql)
+
+    def test_redaction_of_sensitive_information_master_symmetric_key_with_single_quote(self):
+        input_sql = """unload ('SELECT * FROM ssb.dwdate')
+                     to 's3://unload-copy-t4f8cltb-s3copyunloadbucket-i6exicqitkr8/scenario004/2017-12-22_16:54:39/dev.ssb.dwdate.' credentials 
+                     'aws_iam_role=arn:aws:iam::708106511111:role/unload-copy-t4f8cLtB-S3Role-S1R76KW2VMR;master_symmetric_key=fWyHGBEtRyYnjnzRpPDcXr2yuQbEfaWqMhFQuq11111='
+                     manifest encrypted gzip delimiter '^' addquotes escape allowoverwrite"""
+        expected_sql = """unload ('SELECT * FROM ssb.dwdate')
+                     to 's3://unload-copy-t4f8cltb-s3copyunloadbucket-i6exicqitkr8/scenario004/2017-12-22_16:54:39/dev.ssb.dwdate.' credentials 
+                     'aws_iam_role=arn:aws:iam::708106511111:role/unload-copy-t4f8cLtB-S3Role-S1R76KW2VMR;master_symmetric_key=REDACTED'
+                     manifest encrypted gzip delimiter '^' addquotes escape allowoverwrite"""
+        self.assertEquals(GET_SAFE_LOG_STRING(input_sql), expected_sql)
+
+    def test_redaction_of_sensitive_information_master_symmetric_key_copy_with_semicolon(self):
+        input_sql = """copy public.dwdate
+                   from 's3://unload-copy-t4f8cltb-s3copyunloadbucket-i6exicqitkr8/scenario004/2017-12-22_16:54:39/dev.ssb.dwdate.manifest' credentials 
+                   'master_symmetric_key=fWyHGBEtRyYnjnzRpPDcXr2yuQbEfaWqMhFQuq9GeNM=;aws_iam_role=arn:aws:iam::708106507592:role/unload-copy-t4f8cLtB-S3Role-S1R76KW2VMR'
+                   manifest 
+                   encrypted
+                   gzip
+                   delimiter '^' removequotes escape compupdate off REGION 'eu-west-1' """
+        expected_sql = """copy public.dwdate
+                   from 's3://unload-copy-t4f8cltb-s3copyunloadbucket-i6exicqitkr8/scenario004/2017-12-22_16:54:39/dev.ssb.dwdate.manifest' credentials 
+                   'master_symmetric_key=REDACTED;aws_iam_role=arn:aws:iam::708106507592:role/unload-copy-t4f8cLtB-S3Role-S1R76KW2VMR'
+                   manifest 
+                   encrypted
+                   gzip
+                   delimiter '^' removequotes escape compupdate off REGION 'eu-west-1' """
+        self.assertEquals(GET_SAFE_LOG_STRING(input_sql), expected_sql)
+
+    def test_redaction_of_sensitive_information_secret_access_key_keyword(self):
+        input_sql = """copy table-name
+from 's3://objectpath'
+access_key_id '<temporary-access-key-id>'
+secret_access_key '<temporary-secret-access-key>'
+token '<temporary-token>';"""
+        expected_sql = """copy table-name
+from 's3://objectpath'
+access_key_id '<temporary-access-key-id>'
+secret_access_key 'REDACTED'
+token '<temporary-token>';"""
+        self.assertEquals(GET_SAFE_LOG_STRING(input_sql), expected_sql)
+
+    def test_redaction_of_sensitive_information_secret_access_key_keyword_UPPERCASE(self):
+        """
+        SQL is cae insensitive code needs to be as well case insensitive
+        :return:
+        """
+        input_sql = """copy table-name
+from 's3://objectpath'
+access_key_id '<temporary-access-key-id>'
+SECRET_ACCESS_KEY '<temporary-secret-access-key>'
+token '<temporary-token>';"""
+        expected_sql = """copy table-name
+from 's3://objectpath'
+access_key_id '<temporary-access-key-id>'
+secret_access_key 'REDACTED'
+token '<temporary-token>';"""
+        self.assertEquals(GET_SAFE_LOG_STRING(input_sql), expected_sql)
+
+    def test_redaction_password_in_connect_string(self):
+        input_string ="host=localhost port=5439 dbname=dev user=master password=MyS3cr3tPass.word option1"
+        expected_string="host=localhost port=5439 dbname=dev user=master password=REDACTED option1"
+        self.assertEquals(GET_SAFE_LOG_STRING(input_string), expected_string)

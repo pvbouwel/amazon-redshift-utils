@@ -3,9 +3,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 . ${DIR}/log_functionality.sh
 
+update_status "BOOTSTRAPPING"
 start_scenario "Bootstrap the test EC2 instance and document environment"
 scenario_result=0
-
 start_step "Get commit information for this test report"
 cd ${HOME}/amazon-redshift-utils
 echo "git remote -v" >>${STDOUTPUT} 2>>${STDERROR}
@@ -151,6 +151,8 @@ start_step "Create Admin view admin.v_generate_tbl_ddl on source if it does not 
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -f ${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql | grep "CREATE VIEW"
 r=$? && stop_step $r
 
+update_status "Await Redshift restore of source cluster (${SOURCE_CLUSTER_NAME})"
+
 SOURCE_CLUSTER_NAME=`grep -A 1 SourceClusterName ${HOME}/STACK_DETAILS.json | grep OutputValue | awk -F\" '{ print $4}'`
 start_step "Await Redshift restore of source cluster (${SOURCE_CLUSTER_NAME})"
 max_minutes_to_wait=20
@@ -179,11 +181,17 @@ stop_step ${return_code}
 
 stop_scenario
 
+total_tests=`find $DIR -type f -name 'run_test.sh' | wc -l | tr -d ' '`
+test_nr=0
 #Start running the scenario's
 for file in `find $DIR -type f -name 'run_test.sh'`
 do
+ test_nr="$(( $test_nr + 1 ))"
+ update_status "Running test ${test_nr}/${total_tests}"
  . ${file}
 done
+
+update_status "Publishing results to S3"
 
 #Publish results
 echo "Publishing results to S3"
@@ -192,8 +200,4 @@ aws s3 cp ${STDOUTPUT} ${S3_PATH}
 aws s3 cp ${STDERROR} ${S3_PATH}
 aws s3 cp /var/log/cloud-init-output.log ${S3_PATH}
 
-if [ "$AUTODELETE" = "Yes" ]
-then
-    echo "Auto-delete stack is yes so start the cleanup"
-    aws cloudformation delete-stack --region ${REGION_NAME} --stack-name ${STACK_NAME}
-fi
+update_status "Complete"

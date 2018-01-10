@@ -1142,7 +1142,7 @@
           "Version": "2012-10-17",
           "Statement": [
             {
-              "Sid": "",
+              "Sid": "sid",
               "Effect": "Allow",
               "Principal": {
                 "Service": "ec2.amazonaws.com"
@@ -1249,7 +1249,7 @@
           "Version": "2012-10-17",
           "Statement": [
             {
-              "Sid": "VisualEditor1",
+              "Sid": "s1",
               "Effect": "Allow",
               "Action": "iam:*",
               "Resource": [
@@ -1334,7 +1334,7 @@
               ]
             },
             {
-              "Sid": "VisualEditor0",
+              "Sid": "s2",
               "Effect": "Allow",
               "Action": [
                 "redshift:DeleteClusterParameterGroup",
@@ -1346,7 +1346,7 @@
               ]
             },
             {
-            "Sid": "VisualEditor0",
+            "Sid": "s3",
             "Effect": "Allow",
             "Action": [
                 "ec2:RevokeSecurityGroupIngress",
@@ -1366,7 +1366,7 @@
             ]
         },
         {
-            "Sid": "VisualEditor1",
+            "Sid": "s4",
             "Effect": "Allow",
             "Action": [
                 "ec2:DeleteSubnet",

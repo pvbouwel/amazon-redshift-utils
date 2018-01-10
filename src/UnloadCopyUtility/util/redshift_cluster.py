@@ -1,9 +1,11 @@
 import datetime
 import logging
 import re
+from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING
+
 
 import boto3
-import pg
+from pg import connect
 
 options = """keepalives=1 keepalives_idle=200 keepalives_interval=200
              keepalives_count=6"""
@@ -11,17 +13,47 @@ options = """keepalives=1 keepalives_idle=200 keepalives_interval=200
 set_timeout_stmt = "set statement_timeout = 1200000"
 
 
+class RedshiftClusterFactory:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def from_pg_details(pg_details):
+        c = RedshiftCluster(cluster_endpoint=pg_details.host)
+        c.set_db(pg_details.database)
+        c.set_user(pg_details.user)
+        c.set_port(pg_details.port)
+        c.set_password(pg_details.password)
+        return c
+
+    @staticmethod
+    def from_cluster(cluster):
+        c = RedshiftCluster(cluster_endpoint=cluster.get_host())
+        c.set_db(cluster.get_db())
+        c.set_user(cluster.get_user())
+        c.set_port(cluster.get_port())
+        c.set_password(cluster.get_password())
+        return c
+
+
 class RedshiftCluster:
     def __init__(self, cluster_endpoint):
         self._password = None
         self._user = None
         self._db = None
-        self._host = None
         self._port = None
         self.cluster_endpoint = cluster_endpoint
         self._user_auto_create = False
         self._user_creds_expiration = datetime.datetime.now()
         self._user_db_groups = []
+        self._configured_timeout = None
+
+    def __eq__(self, other):
+        return type(self) == type(other) and \
+               self.get_user() == other.get_user() and \
+               self.get_db() == other.get_db() and \
+               self.get_host() == other.get_host() and \
+               self.get_port() == other.get_port()
 
     def get_user(self):
         return self._user
@@ -30,7 +62,7 @@ class RedshiftCluster:
         self._user = user
 
     def get_password(self):
-        if self._password is None or self.is_temporary_credential_expired():
+        if self._password is None and self.is_temporary_credential_expired():
             self.refresh_temporary_credentials()
         return self._password
 
@@ -38,11 +70,10 @@ class RedshiftCluster:
         self._password = password
 
     def get_host(self):
-        return self._host
+        return self.cluster_endpoint
 
-    def set_host(self, host):
-        self._host = host
-
+    def set_host(self, cluster_endpoint):
+        self.cluster_endpoint = cluster_endpoint
 
     def get_port(self):
         return self._port
@@ -62,7 +93,6 @@ class RedshiftCluster:
     def set_user_auto_create(self, user_auto_create):
         self._user_auto_create = user_auto_create
 
-
     def get_user_db_groups(self):
         return self._user_db_groups
 
@@ -74,7 +104,6 @@ class RedshiftCluster:
 
     def set_user_creds_expiration(self, user_creds_expiration):
         self._user_creds_expiration = user_creds_expiration
-
 
     def is_temporary_credential_expired(self):
         one_minute_from_now = datetime.datetime.now() + datetime.timedelta(minutes=1)
@@ -163,26 +192,43 @@ class RedshiftCluster:
         return self.get_element_from_cluster_endpoint('cluster_identifier')
 
     def _conn_to_rs(self, opt=options, timeout=set_timeout_stmt):
-        rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
-            host=self.get_host(),
-            port=self.get_port(),
-            db=self.get_db(),
-            password=self.get_password(), # Very important to first fetch the password because temporary password updates user!
-            user=self.get_user(),
-            opt=opt)
-        print("Connecting to {host}:{port}:{db} as {user}".format(host=self.get_host(),
-                                                                  port=self.get_port(),
-                                                                  db=self.get_db(),
-                                                                  user=self.get_user()))
-        rs_conn = pg.connect(dbname=rs_conn_string)
-        self._conn = rs_conn
+        if not hasattr(self, '_conn') or self._conn is None:
+            rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
+                host=self.get_host(),
+                port=self.get_port(),
+                db=self.get_db(),
+                password=self.get_password(),  # First fetch the password because temporary password updates user!
+                user=self.get_user(),
+                opt=opt)
+            logging.debug(GET_SAFE_LOG_STRING(rs_conn_string))
+            rs_conn = connect(rs_conn_string)
+            self._conn = rs_conn
+        if self._configured_timeout is not None and not self._configured_timeout == timeout:
+            self._conn.query(timeout)
+            self._configured_timeout = timeout
 
-    def execute_query(self, command, opt=options, timeout=set_timeout_stmt):
-        self._conn_to_rs(opt=options, timeout=set_timeout_stmt)
-        self._conn.query(timeout)
-        print(command)
+    def execute_update(self, command, opt=options, timeout=set_timeout_stmt):
+        self._conn_to_rs(opt=opt, timeout=timeout)
+        logging.debug('Executing update:' + GET_SAFE_LOG_STRING(command))
         self._conn.query(command)
         self._disconnect_from_rs()
 
+    def get_query_full_result_as_list_of_dict(self, sql, opt=options, timeout=set_timeout_stmt):
+        """
+        Inefficient way to store data but nice and easy for queries with small result sets.
+        :return:
+        """
+        self._conn_to_rs(opt=opt, timeout=timeout)
+        logging.debug('Executing query:' + GET_SAFE_LOG_STRING(sql))
+        result = self._conn.query(sql)
+        dict_result = result.dictresult()
+        self._disconnect_from_rs()
+        return dict_result
+
     def _disconnect_from_rs(self):
         self._conn.close()
+        self._conn = None
+
+    def __del__(self):
+        if hasattr(self, '_conn') and self._conn is not None:
+            self._disconnect_from_rs()

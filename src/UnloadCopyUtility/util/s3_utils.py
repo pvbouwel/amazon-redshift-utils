@@ -5,7 +5,7 @@ import logging
 
 import boto3
 
-from util.KMSHelper import KMSHelper
+from util.kms_helper import KMSHelper
 
 
 class S3Helper:

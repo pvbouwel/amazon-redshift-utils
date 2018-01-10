@@ -86,3 +86,7 @@ function stop_scenario() {
   RETURN_CODE="${SCENARIO_RESULT}"
   stop_for_type_with_return_code "SCENARIO" ${RETURN_CODE}
 }
+
+function update_status() {
+  echo "`date` STATUS=$1" >> ${HOME}/STATUS
+}

@@ -23,8 +23,8 @@ import json
 import sys
 
 from global_config import GlobalConfigParametersReader
-from util.S3Utils import S3Helper, S3Details
-from util.TableResource import TableResourceFactory
+from util.s3_utils import S3Helper, S3Details
+from util.resources import TableResourceFactory
 
 region = None
 
