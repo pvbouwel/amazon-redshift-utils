@@ -63,7 +63,6 @@ class UnloadCopyTool:
         self.region = region_name
         self.s3_helper = S3Helper(self.region)
 
-        UnloadCopyTool.set_log_level(global_config_values['logLevel'])
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
 
@@ -83,14 +82,20 @@ class UnloadCopyTool:
         if self.s3_details.deleteOnSuccess:
             self.s3_helper.delete_s3_prefix(self.s3_details)
 
-    @staticmethod
-    def set_log_level(log_level_string):
-        log_level_string = log_level_string.upper()
-        if not hasattr(logging, log_level_string):
-            logging.error('Could not find log_level {lvl}'.format(lvl=log_level_string))
-        else:
-            logging.basicConfig(level=getattr(logging, log_level_string))
-            logging.debug('Log level set to {lvl}'.format(lvl=log_level_string))
+
+def set_log_level(log_level_string):
+    log_level_string = log_level_string.upper()
+    if not hasattr(logging, log_level_string):
+        logging.error('Could not find log_level {lvl}'.format(lvl=log_level_string))
+        logging.basicConfig(level=logging.INFO)
+    else:
+        stdout_handler = logging.StreamHandler(stream=sys.stdout)
+        stdout_handler.setLevel(logging.INFO)
+        stderr_handler = logging.StreamHandler()
+        log_level = getattr(logging, log_level_string)
+        stderr_handler.setLevel(log_level)
+        logging.basicConfig(level=log_level, handlers=[stdout_handler, stderr_handler])
+        logging.debug('Log level set to {lvl}'.format(lvl=log_level_string))
 
 
 def main(args):
@@ -99,6 +104,7 @@ def main(args):
     if len(args) != 3:
         global_config_reader = GlobalConfigParametersReader()
         global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
+        set_log_level(global_config_values['logLevel'])
         counter = 1
         if 's3ConfigFile' in global_config_values and global_config_values['s3ConfigFile'] != 'None':
             input_config_file = global_config_values['s3ConfigFile']

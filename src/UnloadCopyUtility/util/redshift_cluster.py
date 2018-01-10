@@ -132,7 +132,12 @@ class RedshiftCluster:
             get_creds_params['AutoCreate'] = True
         if len(self.get_user_db_groups()) > 0:
             get_creds_params['DbGroups'] = self.get_user_db_groups()
+        # Change botocore.parsers to avoid logging of boto3 response since it contains the credentials
+        log_level = logging.getLogger('botocore.parsers').getEffectiveLevel()
+        logging.getLogger('botocore.parsers').setLevel(logging.INFO)
         response = redshift_client.get_cluster_credentials(**get_creds_params)
+        logging.getLogger('botocore.parsers').setLevel(log_level)
+
         self.set_user(response['DbUser'])
         self.set_password(response['DbPassword'])
         self.set_user_creds_expiration(response['Expiration'])
