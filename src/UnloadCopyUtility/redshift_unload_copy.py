@@ -100,16 +100,16 @@ def main(args):
         global_config_reader = GlobalConfigParametersReader()
         global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
         counter = 1
-        if 's3ConfigFile' in global_config_values and global_config_values['s3ConfigFile'] is not None:
+        if 's3ConfigFile' in global_config_values and global_config_values['s3ConfigFile'] != 'None':
             input_config_file = global_config_values['s3ConfigFile']
         else:
-            input_config_file = args[counter]
+            input_config_file = global_config_reader.unprocessed_arguments[counter]
             counter += 1
 
-        if 'region' in global_config_values and global_config_values['region'] is not None:
+        if 'region' in global_config_values and global_config_values['region'] != 'None':
             region = global_config_values['region']
         else:
-            region = args[counter]
+            region = global_config_reader.unprocessed_arguments[counter]
             counter += 1
 
         if len(global_config_reader.unprocessed_arguments) != counter:
