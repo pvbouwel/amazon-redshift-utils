@@ -58,13 +58,12 @@ class ConfigHelper:
 
 
 class UnloadCopyTool:
-    def __init__(self, config_file, region, global_config_values={}):
-        self.region = region
+    def __init__(self, config_file, region_name, global_config_values={}):
+        self.region = region_name
         self.s3_helper = S3Helper(self.region)
 
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
-
 
         self.source_table = TableResourceFactory.get_source_table_resource_from_config_helper(self.config_helper,
                                                                                               self.region)
@@ -81,8 +80,6 @@ class UnloadCopyTool:
 
         if self.s3_details.deleteOnSuccess:
             self.s3_helper.delete_s3_prefix(self.s3_details)
-
-
 
 
 def main(args):

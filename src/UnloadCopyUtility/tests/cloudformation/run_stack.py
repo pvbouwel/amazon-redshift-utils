@@ -11,7 +11,6 @@ from copy import deepcopy
 import datetime
 import paramiko
 
-os.tmpfile()
 
 cloudformation = boto3.client('cloudformation', region_name='eu-west-1')
 logging.basicConfig(level=logging.INFO)
@@ -65,7 +64,10 @@ class CloudFormationStack:
 
     def get_output_variable(self, output_variable_name):
         self._refresh_stack_details()
-        return self.stack_details['Outputs'][output_variable_name]
+        for element in self.stack_details['Outputs']:
+            if element['OutputKey'] == output_variable_name:
+                return element['OutputValue']
+        return None
 
     def create_stack(self):
         cloudformation.create_stack(StackName=self.get_name(),
@@ -137,6 +139,7 @@ class StackRunner:
                 sys.exit(0)
             while not self.is_stack_ready_for_teardown():
                 time.sleep(self.stack.POLL_INTERVAL)
+            logging.info('We should be ready to bring everything down')
             self.stack.teardown_stack()
 
     def is_stack_ready_for_teardown(self):
@@ -164,7 +167,7 @@ class StackRunner:
             if self.is_boolean_config(argument):
                 self.set_boolean_config(cli_argument=argument)
             elif argument.startswith('--'):
-                if argument.lower() == 'ssh-key':
+                if argument.lower() == '--ssh-key':
                     key_name = 'ssh_key'
                 else:
                     logging.warning('Encountered unknown argument {arg}'.format(arg=argument))

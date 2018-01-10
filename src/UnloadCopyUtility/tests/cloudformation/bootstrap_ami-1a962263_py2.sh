@@ -26,8 +26,8 @@ r=$? && stop_step $r
 
 start_step "Get IAM_INFO.json"
 curl http://169.254.169.254/latest/meta-data/iam/info > ${HOME}/IAM_INFO.json 2>>${STDERROR}
-echo "Result=`cat IAM_INFO.json`" >>${STDOUTPUT} 2>>${STDERROR}
-cat IAM_INFO.json | grep Success &>>/dev/null
+echo "Result=`cat ${HOME}/IAM_INFO.json`" >>${STDOUTPUT} 2>>${STDERROR}
+cat ${HOME}/IAM_INFO.json | grep Success &>>/dev/null
 r=$? && stop_step $r
 
 REGION_NAME=`curl http://169.254.169.254/latest/meta-data/hostname | awk -F. '{print $2}'`
