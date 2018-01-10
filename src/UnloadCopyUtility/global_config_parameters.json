@@ -19,6 +19,11 @@
     "value": "False",
     "possibleValues": "True|False"
   },
+  "logLevel":{
+    "description": "Log level for the output",
+    "value": "INFO",
+    "possibleValues": "DEBUG|INFO|WARNING|ERROR|CRITICAL|FATAL"
+  },
   "locationGenerateTableDDLView": {
     "description": "Path to v_generate_tbl_ddl.sql.  The default assumes that UnloadCopyUtility is part of a fully cloned amazon-redshift-utils (https://github.com/awslabs/amazon-redshift-utils.git)",
     "value": "./../AdminViews/v_generate_tbl_ddl.sql",

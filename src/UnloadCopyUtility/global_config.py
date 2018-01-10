@@ -1,5 +1,4 @@
 import json
-import logging
 import boto3
 
 
@@ -106,6 +105,7 @@ class DefaultConfigParameter(ConfigParameter):
 
 
 class DefaultValueListConfigParameter(DefaultConfigParameter):
+    # noinspection PyDefaultArgument
     def __init__(self, name, value, description, possible_values=[]):
         super(DefaultValueListConfigParameter, self).__init__(name, value, description, possible_values)
         self.possible_values = [a.lower() for a in possible_values]
@@ -134,6 +134,7 @@ class DefaultValueListConfigParameter(DefaultConfigParameter):
 
 
 class DefaultRegionConfigParameter(DefaultConfigParameter):
+    # noinspection PyDefaultArgument
     def __init__(self, name, value, description, possible_values=[]):
         super(DefaultRegionConfigParameter, self).__init__(name, value, description, possible_values)
         self.value_checks = [self.check_is_region]
@@ -145,14 +146,16 @@ class DefaultRegionConfigParameter(DefaultConfigParameter):
 
     def is_region(self, input_string):
         if self.valid_regions is None:
-            ec2_client = boto3.client('ec2')
+            ec2_client = boto3.client('ec2', region_name='eu-west-1')
             response = ec2_client.describe_regions()
             self.valid_regions = [r['RegionName'] for r in response['Regions']]
         return input_string in self.valid_regions
 
     def check_is_region(self, value):
         if not self.is_region(value):
-            raise DefaultRegionConfigParameter.InvalidRegionInConfigException('{r} is not a region'.format(r=str(value)))
+            raise DefaultRegionConfigParameter.InvalidRegionInConfigException('{r} is not a region'.format(
+                r=str(value))
+            )
 
     class InvalidRegionInConfigException(DefaultConfigParameter.InvalidConfigException):
         def __init__(self, reason):
@@ -160,20 +163,23 @@ class DefaultRegionConfigParameter(DefaultConfigParameter):
 
 
 class DefaultBoolConfigParameter(DefaultConfigParameter):
+    # noinspection PyDefaultArgument
     def __init__(self, name, value, description, possible_values=[]):
         super(DefaultBoolConfigParameter, self).__init__(name, value, description, possible_values)
-        self.value_checks = [self.check_is_bool]
+        self.value_checks = [DefaultBoolConfigParameter.check_is_bool]
         self.type = 'bool'
 
-    def is_bool(self, value):
+    @staticmethod
+    def is_bool(value):
         str_value = str(value)
         if str_value.lower() == 'false' or str_value.lower() == 'true':
             return True
         else:
             return False
 
-    def check_is_bool(self, value):
-        if not self.is_bool(value):
+    @staticmethod
+    def check_is_bool(value):
+        if not DefaultBoolConfigParameter.is_bool(value):
             raise DefaultBoolConfigParameter.InvalidBoolInConfigException('{v} is not a bool'.format(v=str(value)))
 
     class InvalidBoolInConfigException(DefaultConfigParameter.InvalidConfigException):
@@ -251,15 +257,11 @@ class GlobalConfigParametersReader:
 
     def process_parameter_without_value(self):
         default_config_parameter = self.config_parameters[self.parameter_key_being_processed]
-        logging.info('Parameter {p} does not have value, assuming it is flag that sets parameter to "True"'.format(
-            p=default_config_parameter.name
-        ))
         self.config_parameters[self.parameter_key_being_processed] = ConfigParameterFactory.make_config_parameter(
             default_config_parameter,
             'True'
         )
         self.parameter_key_being_processed = None
-
 
     def process_parameter_with_value(self, cli_flag):
         config_parameter_being_processed = self.config_parameters[self.parameter_key_being_processed]
@@ -273,17 +275,14 @@ class GlobalConfigParametersReader:
     @staticmethod
     def get_key_for_cli_flag(cli_flag):
         result = ''
-        logging.debug('Getting key for CLI flag: {flag}'.format(flag=cli_flag))
         if cli_flag.startswith('--'):
             cli_flag = cli_flag[2:]
         else:
-            logging.debug('CLI flags should start with double dash --')
             return None
 
         next_is_upper = False
         for letter in cli_flag:
             if letter == '-' and next_is_upper:
-                logging.warning('CLI flags should not have double dash -- in their name')
                 return None
             if letter == '-':
                 next_is_upper = True
@@ -294,10 +293,4 @@ class GlobalConfigParametersReader:
                 next_is_upper = False
             else:
                 result += letter
-        logging.debug(' > flag: {flag}'.format(flag=result))
         return result
-
-
-
-
-

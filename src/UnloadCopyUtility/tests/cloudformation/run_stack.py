@@ -33,10 +33,13 @@ class CloudFormationStack:
                 stack_name_parts.append(stack_name)
             return '-'.join(stack_name_parts)
 
-    def _refresh_stack_details(self, force=False, initial=False):
+    def get_stack_details_expiry_time(self):
+        return self.stack_details_update_date + datetime.timedelta(seconds=CloudFormationStack.POLL_INTERVAL)
+
+    def _refresh_stack_details(self, force=False):
         stack_name = self.get_name()
 
-        if force or not self.stack_details_update_date + datetime.timedelta(seconds=CloudFormationStack.POLL_INTERVAL) > datetime.datetime.now():
+        if force or datetime.datetime.now() > self.get_stack_details_expiry_time():
             try:
                 response = cloudformation.describe_stacks(StackName=stack_name)
             except ClientError as e:
@@ -53,7 +56,6 @@ class CloudFormationStack:
             if len(response['Stacks']) > 1:
                 raise CloudFormationStack.MultipleStacksException()
             else:
-                # 'StackStatus': 'CREATE_IN_PROGRESS'|'CREATE_FAILED'|'CREATE_COMPLETE'|'ROLLBACK_IN_PROGRESS'|'ROLLBACK_FAILED'|'ROLLBACK_COMPLETE'|'DELETE_IN_PROGRESS'|'DELETE_FAILED'|'DELETE_COMPLETE'|'UPDATE_IN_PROGRESS'|'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS'|'UPDATE_COMPLETE'|'UPDATE_ROLLBACK_IN_PROGRESS'|'UPDATE_ROLLBACK_FAILED'|'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS'|'UPDATE_ROLLBACK_COMPLETE'|'REVIEW_IN_PROGRESS'
                 logging.debug('Stack has status')
                 self.stack_details = deepcopy(response['Stacks'][0])
             self.stack_details_update_date = datetime.datetime.now()
@@ -89,6 +91,7 @@ class CloudFormationStack:
                     stack_parameters.append({'ParameterKey': key,
                                              'ParameterValue': value})
 
+        # noinspection PyUnusedLocal
         random_suffix = ''.join(random.choice(string.ascii_uppercase + string.digits) for i in range(8))
         stack_parameters.append({'ParameterKey': 'MasterUserPassword',
                                  'ParameterValue': 'Pass1.{r}'.format(r=random_suffix)})
@@ -117,11 +120,15 @@ class StackRunner:
             'stack_name': None,
             'create': True,
             'auto_delete': False,
-            'ssh_key': None
+            'ssh_key': None,
+            'await_tests': True,
+            'debug': False
         }
 
         self.config = deepcopy(self.default_config)
         self.parse_arguments(arguments)
+        if self.config['debug']:
+            logging.basicConfig(level=logging.DEBUG)
         self.stack = CloudFormationStack(self.config['stack_name'])
 
         if self.stack.get_status() == 'NON-EXISTENT':
@@ -131,16 +138,23 @@ class StackRunner:
                 self.stack.create_stack()
                 time.sleep(self.stack.POLL_INTERVAL)
 
+        if self.config['await_tests']:
+            self.await_finishing_of_tests()
+        logging.info('Tests have completed')
+
         if self.config['auto_delete']:
             if self.stack.get_status() == 'NON-EXISTENT':
                 logging.info('Stack {sn} does not exist, cannot delete something that does not exist.'.format(
                     sn=self.stack.get_name()
                 ))
                 sys.exit(0)
-            while not self.is_stack_ready_for_teardown():
-                time.sleep(self.stack.POLL_INTERVAL)
+            self.await_finishing_of_tests()
             logging.info('We should be ready to bring everything down')
             self.stack.teardown_stack()
+
+    def await_finishing_of_tests(self):
+        while not self.is_stack_ready_for_teardown():
+            time.sleep(self.stack.POLL_INTERVAL)
 
     def is_stack_ready_for_teardown(self):
         return self.stack.get_status() == 'CREATE_COMPLETE' and self.are_all_tests_completed()
@@ -150,6 +164,7 @@ class StackRunner:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
+            # noinspection PyTypeChecker
             client.connect(ec2_instance_url, username='ec2-user', key_filename=self.config['ssh_key'])
             stdin, stdout, stderr = client.exec_command('tail ${HOME}/STATUS')
 

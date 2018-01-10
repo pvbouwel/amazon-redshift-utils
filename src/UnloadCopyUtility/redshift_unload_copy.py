@@ -21,7 +21,7 @@ python redshift-unload-copy.py <config file> <region>
 
 import json
 import sys
-
+import logging
 from global_config import GlobalConfigParametersReader
 from util.s3_utils import S3Helper, S3Details
 from util.resources import TableResourceFactory
@@ -58,10 +58,12 @@ class ConfigHelper:
 
 
 class UnloadCopyTool:
+    # noinspection PyDefaultArgument
     def __init__(self, config_file, region_name, global_config_values={}):
         self.region = region_name
         self.s3_helper = S3Helper(self.region)
 
+        UnloadCopyTool.set_log_level(global_config_values['logLevel'])
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
 
@@ -72,20 +74,27 @@ class UnloadCopyTool:
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
 
-        print("Exporting from Source")
+        logging.info("Exporting from Source")
         self.source_table.unload_data(self.s3_details)
 
-        print("Importing to Target")
+        logging.info("Importing to Target")
         self.destination_table.copy_data(self.s3_details)
 
         if self.s3_details.deleteOnSuccess:
             self.s3_helper.delete_s3_prefix(self.s3_details)
 
+    @staticmethod
+    def set_log_level(log_level_string):
+        log_level_string = log_level_string.upper()
+        if not hasattr(logging, log_level_string):
+            logging.error('Could not find log_level {lvl}'.format(lvl=log_level_string))
+        else:
+            logging.basicConfig(level=getattr(logging, log_level_string))
+            logging.debug('Log level set to {lvl}'.format(lvl=log_level_string))
+
 
 def main(args):
     global region
-    input_config_file = None
-    global_config_values = None
 
     if len(args) != 3:
         global_config_reader = GlobalConfigParametersReader()

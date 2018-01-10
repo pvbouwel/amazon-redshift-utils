@@ -848,7 +848,8 @@
                 "cloudformation:PreviewStackUpdate",
                 "cloudformation:ListStacks",
                 "cloudformation:DescribeAccountLimits",
-                "cloudformation:DescribeChangeSet"
+                "cloudformation:DescribeChangeSet",
+                "ec2:DescribeRegions"
               ],
               "Resource": "*"
             }

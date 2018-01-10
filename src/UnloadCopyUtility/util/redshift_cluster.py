@@ -62,8 +62,13 @@ class RedshiftCluster:
         self._user = user
 
     def get_password(self):
-        if self._password is None and self.is_temporary_credential_expired():
+        if self._password is None or self.is_temporary_credential_expired():
             self.refresh_temporary_credentials()
+        # noinspection PyBroadException
+        try:
+            self._password = self._password.decode('utf-8')
+        except:
+            pass  # If we cannot decode it it could be a valid byte string already
         return self._password
 
     def set_password(self, password):
