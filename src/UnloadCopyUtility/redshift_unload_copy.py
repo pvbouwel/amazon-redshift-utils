@@ -93,6 +93,9 @@ class UnloadCopyTool:
                 if self.destination_table.get_table() == self.source_table.get_table():
                     if self.destination_table.get_schema() == self.source_table.get_schema():
                         self.destination_table.set_create_sql(self.source_table.get_create_sql(generate=True))
+                        if not self.destination_table.is_present():
+                            logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
+                            self.destination_table.create()
                     else:
                         logging.fatal('Destination schema {s2} is different from source schema {s1}.'.format(
                             s1=self.source_table.get_schema(),

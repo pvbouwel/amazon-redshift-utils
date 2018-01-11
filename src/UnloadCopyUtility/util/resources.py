@@ -1,4 +1,3 @@
-import logging
 import re
 from abc import abstractmethod
 
@@ -190,7 +189,6 @@ class TableResource(SchemaResource):
         command_parameters['schema_name'] = self.get_schema()
         command_parameters['table_name'] = self.get_table()
         command_parameters['cluster'] = self.get_cluster()
-        logging.info("Executing on {cluster} the command: {command}")
         command_to_execute = self.commands[command]
         if 'region' in command_parameters and command == 'copy' and command_parameters['region'] is not None:
             command_to_execute += " REGION '{region}' "
