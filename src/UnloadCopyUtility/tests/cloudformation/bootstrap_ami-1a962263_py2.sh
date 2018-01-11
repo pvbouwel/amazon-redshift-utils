@@ -184,7 +184,7 @@ stop_scenario
 total_tests=`find $DIR -type f -name 'run_test.sh' | wc -l | tr -d ' '`
 test_nr=0
 #Start running the scenario's
-for file in `find $DIR -type f -name 'run_test.sh'`
+for file in `find $DIR -type f -name 'run_test.sh' | sort `
 do
  test_nr="$(( $test_nr + 1 ))"
  update_status "Running test ${test_nr}/${total_tests}"
