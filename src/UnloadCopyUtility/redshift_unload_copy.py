@@ -138,17 +138,9 @@ def set_log_level(log_level_string):
 def main(args):
     global region
 
-    if len(args) != 3:
-        global_config_reader = GlobalConfigParametersReader()
-        global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
-        set_log_level(global_config_values['logLevel'])
-
-    else:
-        # Legacy mode
-        region = args[2]
-        input_config_file = args[1]
-        global_config_reader = GlobalConfigParametersReader()
-        global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
+    global_config_reader = GlobalConfigParametersReader()
+    global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
+    set_log_level(global_config_values['logLevel'])
 
     UnloadCopyTool(global_config_values['s3ConfigFile'], global_config_values['region'], global_config_values)
 

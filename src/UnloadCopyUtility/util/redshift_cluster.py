@@ -1,7 +1,8 @@
-import datetime
+from datetime import datetime, timedelta
 import logging
 import re
 from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING
+import pytz
 
 
 import boto3
@@ -44,7 +45,7 @@ class RedshiftCluster:
         self._port = None
         self.cluster_endpoint = cluster_endpoint
         self._user_auto_create = False
-        self._user_creds_expiration = datetime.datetime.now()
+        self._user_creds_expiration = datetime.now(pytz.utc)
         self._user_db_groups = []
         self._configured_timeout = None
 
@@ -111,7 +112,7 @@ class RedshiftCluster:
         self._user_creds_expiration = user_creds_expiration
 
     def is_temporary_credential_expired(self):
-        one_minute_from_now = datetime.datetime.now() + datetime.timedelta(minutes=1)
+        one_minute_from_now = datetime.now(pytz.utc) + timedelta(minutes=1)
         if self.get_user_creds_expiration() is None:
             return True
 
