@@ -58,11 +58,11 @@ cat ${HOME}/${SCENARIO}.ddl.sql >>${STDOUTPUT} 2>>${STDERROR}
 increment_step_result $?
 stop_step ${STEP_RESULT}
 
-start_step "Drop table ${SOURCE_SCHEMA}.${SOURCE_TABLE} in target cluster if it exists"
-psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "DROP TABLE IF EXISTS ${SOURCE_SCHEMA}.${SOURCE_TABLE};" 2>>${STDERROR} | grep "DROP TABLE"  >>${STDOUTPUT} 2>>${STDERROR}
+start_step "Drop table ${TARGET_SCHEMA}.${TARGET_TABLE} in target cluster if it exists"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "DROP TABLE IF EXISTS ${TARGET_SCHEMA}.${TARGET_TABLE};" 2>>${STDERROR} | grep "DROP TABLE"  >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-start_step "Create table ${SOURCE_SCHEMA}.${SOURCE_TABLE} in target cluster"
+start_step "Create table ${TARGET_SCHEMA}.${TARGET_TABLE} in target cluster"
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f ${HOME}/${SCENARIO}.ddl.sql | grep "CREATE TABLE"  >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
