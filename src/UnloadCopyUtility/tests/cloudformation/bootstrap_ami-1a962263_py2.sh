@@ -20,8 +20,8 @@ start_step "Install Python pip (easy_install pip)"
 sudo easy_install pip >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
-start_step "Install OS packages (yum install -y postgresql postgresql-devel python27-virtualenv python36-devel python36-virtualenv gcc python-devel git aws-cli )"
-sudo yum install -y postgresql postgresql-devel gcc python-devel python27-virtualenv python36-devel python36-virtualenv git aws-cli >>${STDOUTPUT} 2>>${STDERROR}
+start_step "Install OS packages (yum install -y postgresql postgresql-devel python27-virtualenv python36-devel python36-virtualenv gcc python-devel git aws-cli libffi-devel.x86_64 )"
+sudo yum install -y postgresql postgresql-devel gcc python-devel python27-virtualenv python36-devel python36-virtualenv git aws-cli libffi-devel.x86_64 >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 start_step "Get IAM_INFO.json"
