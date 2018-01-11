@@ -58,6 +58,10 @@ class ConfigHelper:
 
 
 class UnloadCopyTool:
+    EXIT_CODE_TABLE_NOT_EXIST_AND_NO_AUTO_CREATE = 500
+    EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_TABLE_NAME_THAN_SOURCE = 599
+    EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_SCHEMA_NAME_THAN_SOURCE = 599
+
     # noinspection PyDefaultArgument
     def __init__(self, config_file, region_name, global_config_values={}):
         self.region = region_name
@@ -68,8 +72,41 @@ class UnloadCopyTool:
 
         self.source_table = TableResourceFactory.get_source_table_resource_from_config_helper(self.config_helper,
                                                                                               self.region)
+
         self.destination_table = TableResourceFactory.get_target_table_resource_from_config_helper(self.config_helper,
                                                                                                    self.region)
+
+        if self.destination_table.is_present():
+            if global_config_values['destinationTableAutoCreate']:
+                logging.info('Destination table {s}.{t} already exists, ignoring auto-create.'.format(
+                    s=self.destination_table.get_schema(),
+                    t=self.destination_table.get_table()
+                ))
+        else:
+            if not global_config_values['destinationTableAutoCreate']:
+                logging.fatal('Destination table {s}.{t} does not exist and auto-create is disabled.'.format(
+                    s=self.destination_table.get_schema(),
+                    t=self.destination_table.get_table()
+                ))
+                sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_NO_AUTO_CREATE)
+            else:
+                if self.destination_table.get_table() == self.source_table.get_table():
+                    if self.destination_table.get_schema() == self.source_table.get_schema():
+                        self.destination_table.set_create_sql(self.source_table.get_create_sql(generate=True))
+                    else:
+                        logging.fatal('Destination schema {s2} is different from source schema {s1}.'.format(
+                            s1=self.source_table.get_schema(),
+                            s2=self.destination_table.get_schema()
+                        ))
+                        logging.fatal('Schema renaming for auto-create not yet supported.')
+                        sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_SCHEMA_NAME_THAN_SOURCE)
+                else:
+                    logging.fatal('Destination table {t2} is different from source table {t1}.'.format(
+                        t1=self.source_table.get_table(),
+                        t2=self.destination_table.get_table()
+                    ))
+                    logging.fatal('Table renaming for auto-create not yet supported.')
+                    sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_TABLE_NAME_THAN_SOURCE)
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
 
@@ -105,21 +142,7 @@ def main(args):
         global_config_reader = GlobalConfigParametersReader()
         global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
         set_log_level(global_config_values['logLevel'])
-        counter = 1
-        if 's3ConfigFile' in global_config_values and global_config_values['s3ConfigFile'] != 'None':
-            input_config_file = global_config_values['s3ConfigFile']
-        else:
-            input_config_file = global_config_reader.unprocessed_arguments[counter]
-            counter += 1
 
-        if 'region' in global_config_values and global_config_values['region'] != 'None':
-            region = global_config_values['region']
-        else:
-            region = global_config_reader.unprocessed_arguments[counter]
-            counter += 1
-
-        if len(global_config_reader.unprocessed_arguments) != counter:
-            usage()
     else:
         # Legacy mode
         region = args[2]
@@ -127,7 +150,7 @@ def main(args):
         global_config_reader = GlobalConfigParametersReader()
         global_config_values = global_config_reader.get_config_key_values_updated_with_cli_args(args)
 
-    UnloadCopyTool(input_config_file, region, global_config_values)
+    UnloadCopyTool(global_config_values['s3ConfigFile'], global_config_values['region'], global_config_values)
 
 if __name__ == "__main__":
     main(sys.argv)

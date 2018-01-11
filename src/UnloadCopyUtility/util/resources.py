@@ -18,15 +18,16 @@ class Resource:
         pass
 
     def get_create_sql(self, generate=False):
-        if self.create_sql is not None:
-            return self.create_sql
+        if generate:
+            ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
+                self.get_statement_to_retrieve_ddl_create_statement_text()
+            )
+            ddl = '\n'.join([r['ddl'] for r in ddl_dict])
+            self.create_sql = ddl_dict
+            return ddl
         else:
-            if generate:
-                ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
-                    self.get_statement_to_retrieve_ddl_create_statement_text()
-                )
-                ddl = '\n'.join([r['ddl'] for r in ddl_dict])
-                return ddl
+            if self.create_sql is not None:
+                return self.create_sql
             else:
                 raise Resource.CreateSQLNotSet('No create sql configured for resource {r}'.format(r=str(self)))
 
