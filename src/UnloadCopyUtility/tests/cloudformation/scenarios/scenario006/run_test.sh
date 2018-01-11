@@ -5,11 +5,12 @@ source ${HOME}/variables.sh
 SCENARIO=scenario005
 SOURCE_SCHEMA="ssb"
 SOURCE_TABLE="customer"
-TARGET_SCHEMA="${SOURCE_SCHEMA}"
+TARGET_SCHEMA="public"
 TARGET_TABLE="${SOURCE_TABLE}"
 PYTHON="python3"
 
 DESCRIPTION="Perform Unload Copy with password encrypted using KMS, create table in target location"
+DESCRIPTION="Perform Unload Copy with password encrypted using KMS, create table in target cluster in different schema"
 DESCRIPTION="${DESCRIPTION}Use ${PYTHON}."
 
 start_scenario "${DESCRIPTION}"
@@ -47,11 +48,6 @@ cat >${HOME}/${SCENARIO}.json <<EOF
 EOF
 
 cat ${HOME}/${SCENARIO}.json >>${STDOUTPUT} 2>>${STDERROR}
-r=$? && stop_step $r
-
-start_step "Create schema ${TARGET_SCHEMA} in target cluster"
-DDL="CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA}"
-psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "${DDL}" | grep "CREATE SCHEMA"  >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
 
 start_step "Run Unload Copy Utility"

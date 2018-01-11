@@ -217,6 +217,25 @@ class GlobalConfigParametersReader:
         self.get_default_config_parameter_updated_with_cli_args(argv)
         return GlobalConfigParametersReader.get_key_value_dict(self.config_parameters)
 
+    def check_unprocessed_parameters(self):
+        counter = 1
+        if 's3ConfigFile' not in self.config_parameters or self.config_parameters['s3ConfigFile'].get_value() == 'None':
+            self.config_parameters['s3ConfigFile'] = ConfigParameterFactory.make_config_parameter(
+                self.config_parameters['s3ConfigFile'],
+                self.unprocessed_arguments[counter].lower()
+            )
+            counter += 1
+
+        if 'region' not in self.config_parameters or self.config_parameters['region'].get_value() == 'None':
+            self.config_parameters['region'] = ConfigParameterFactory.make_config_parameter(
+                self.config_parameters['region'],
+                self.unprocessed_arguments[counter].lower()
+            )
+            counter += 1
+
+        if len(self.unprocessed_arguments) != counter:
+            raise GlobalConfigParametersReader.ParsingException(unprocessed_arguments=self.unprocessed_arguments)
+
     @staticmethod
     def get_key_value_dict(config_parameters_dict):
         result = {}
@@ -232,7 +251,9 @@ class GlobalConfigParametersReader:
         while len(self.cli_arguments_to_process) > 0:
             cli_flag = self.cli_arguments_to_process.pop(0)
             if self.is_a_parameter_key_being_processed():
-                if cli_flag.startswith('--'):
+                if cli_flag.startswith('--') \
+                        or (self.is_parameter_being_processed_a_bool() and
+                            (cli_flag.lower() != 'false' and cli_flag.lower() != 'true')):
                     self.process_parameter_without_value()
                 else:
                     self.process_parameter_with_value(cli_flag)
@@ -250,7 +271,12 @@ class GlobalConfigParametersReader:
         if self.is_a_parameter_key_being_processed():
             self.process_parameter_without_value()
 
+        self.check_unprocessed_parameters()
+
         return self.config_parameters
+
+    def is_parameter_being_processed_a_bool(self):
+        return self.config_parameters[self.parameter_key_being_processed].type == 'bool'
 
     def is_a_parameter_key_being_processed(self):
         return self.parameter_key_being_processed is not None
@@ -294,3 +320,9 @@ class GlobalConfigParametersReader:
             else:
                 result += letter
         return result
+
+    class ParsingException(Exception):
+        # noinspection PyDefaultArgument
+        def __init__(self, unprocessed_arguments=[]):
+            super(GlobalConfigParametersReader.ParsingException, self).__init__()
+            self.args = unprocessed_arguments
