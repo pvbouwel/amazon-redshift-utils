@@ -2,3 +2,4 @@ boto3
 botocore
 PyGreSQL==5.0.4
 paramiko==2.4.0
+pytz==2017.3
