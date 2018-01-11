@@ -4,7 +4,7 @@ from abc import abstractmethod
 from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
-from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper
+from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, TableDDLTransformer
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
@@ -48,6 +48,15 @@ class Resource:
 
     @abstractmethod
     def is_present(self, force_update=False):
+        pass
+
+    @abstractmethod
+    def clone_structure_from(self, other):
+        """
+        Change DDL of self such that it has the same structure as other
+        :param other: Resource implementation of same type a self
+        :return:
+        """
         pass
 
     class NotFound(Exception):
@@ -208,6 +217,14 @@ class TableResource(SchemaResource):
                            'region': s3_details.dataStagingRegion}
 
         self.run_command_against_table_resource('copy', copy_parameters)
+
+    def clone_structure_from(self, other):
+        other_ddl = other.get_create_sql(generate=True)
+        self.set_create_sql(TableDDLTransformer.get_create_table_ddl_for_different_relation(
+            other_ddl,
+            new_table_name=self.get_table(),
+            new_schema_name=self.get_schema()
+        ))
 
 
 class TableResourceFactory:

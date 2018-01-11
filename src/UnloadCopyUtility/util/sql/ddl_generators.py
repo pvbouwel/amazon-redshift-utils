@@ -1,4 +1,5 @@
 from util.sql.sql_text_helpers import SQLTextHelper
+import re
 
 
 class DDLHelper:
@@ -43,6 +44,47 @@ class TableDDLHelper(DDLHelper):
         return self.get_sql()
 
 
+class TableDDLTransformer:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get_create_table_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
+        """
+        Get ddl but adapt it to create a relation with different name but same structure
+        :param ddl:  ddl from admin.v_generate_tbl_ddl view
+        :param new_table_name: if None don't replace table_name
+        :param new_schema_name: if None don't replace schema_name
+        :return:
+        """
+        try:
+            clean_dll = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
+            round_bracket_separated_parts = clean_dll.split('(')
+            first_round_bracket_part = round_bracket_separated_parts[0]
+            space_separated_parts = first_round_bracket_part.split(' ')
+            relation_specification = space_separated_parts[-1]
+            match_dict = re.match(r'"(?P<schema_name>.*)"\."(?P<table_name>.*)"', relation_specification).groupdict()
+            original_table_name = match_dict['table_name']
+            original_schema_name = match_dict['schema_name']
+            new_table_name = new_table_name or original_table_name
+            new_schema_name = new_schema_name or original_schema_name
+            relation_specification = '"{schema}"."{table}"'.format(
+                schema=new_schema_name.replace('"', '""'),  # In SQL we need to escape double quotes
+                table=new_table_name.replace('"', '""')
+            )
+            space_separated_parts[-1] = relation_specification
+            round_bracket_separated_parts[0] = ' '.join(space_separated_parts)
+            new_ddl = '('.join(round_bracket_separated_parts)
+        except:
+            raise TableDDLTransformer.InvalidDDLSQLException(ddl)
+        return new_ddl
+
+    class InvalidDDLSQLException(Exception):
+        def __init__(self, ddl):
+            super(TableDDLTransformer.InvalidDDLSQLException, self).__init__()
+            self.ddl = ddl
+
+
 class SchemaDDLHelper(DDLHelper):
     def __init__(self, path_to_v_generate_table_ddl='./../AdminViews/v_generate_schema_ddl.sql'):
         view_start = 'CREATE OR REPLACE VIEW admin.v_generate_schema_ddl AS '
@@ -55,5 +97,3 @@ class SchemaDDLHelper(DDLHelper):
             filters['schemaname'] = schema_name
         self.add_filters(filters)
         return self.get_sql()
-
-

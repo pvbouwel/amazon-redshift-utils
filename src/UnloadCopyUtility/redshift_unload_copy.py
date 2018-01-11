@@ -83,6 +83,7 @@ class UnloadCopyTool:
                     t=self.destination_table.get_table()
                 ))
         else:
+            # TODO: destinationSchemaAutoCreate
             if not global_config_values['destinationTableAutoCreate']:
                 logging.fatal('Destination table {s}.{t} does not exist and auto-create is disabled.'.format(
                     s=self.destination_table.get_schema(),
@@ -90,26 +91,9 @@ class UnloadCopyTool:
                 ))
                 sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_NO_AUTO_CREATE)
             else:
-                if self.destination_table.get_table() == self.source_table.get_table():
-                    if self.destination_table.get_schema() == self.source_table.get_schema():
-                        self.destination_table.set_create_sql(self.source_table.get_create_sql(generate=True))
-                        if not self.destination_table.is_present():
-                            logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
-                            self.destination_table.create()
-                    else:
-                        logging.fatal('Destination schema {s2} is different from source schema {s1}.'.format(
-                            s1=self.source_table.get_schema(),
-                            s2=self.destination_table.get_schema()
-                        ))
-                        logging.fatal('Schema renaming for auto-create not yet supported.')
-                        sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_SCHEMA_NAME_THAN_SOURCE)
-                else:
-                    logging.fatal('Destination table {t2} is different from source table {t1}.'.format(
-                        t1=self.source_table.get_table(),
-                        t2=self.destination_table.get_table()
-                    ))
-                    logging.fatal('Table renaming for auto-create not yet supported.')
-                    sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_TABLE_NAME_THAN_SOURCE)
+                self.destination_table.clone_structure_from(self.source_table)
+                logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
+                self.destination_table.create()
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
 
