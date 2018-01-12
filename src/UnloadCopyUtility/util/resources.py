@@ -5,6 +5,7 @@ from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
 from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, DDLTransformer
+from util.sql.sql_text_helpers import SQLTextHelper
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
@@ -21,8 +22,10 @@ class Resource:
             ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
                 self.get_statement_to_retrieve_ddl_create_statement_text()
             )
-            ddl = '\n'.join([r['ddl'] for r in ddl_dict])
-            self.create_sql = ddl_dict
+            ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(
+                '\n'.join([r['ddl'] for r in ddl_dict])
+            )
+            self.create_sql = ddl
             return ddl
         else:
             if self.create_sql is not None:
@@ -152,7 +155,6 @@ class SchemaResource(DBResource, ChildObject):
 
     def get_statement_to_retrieve_ddl_create_statement_text(self):
         return SchemaDDLHelper().get_schema_ddl_SQL(schema_name=self.get_schema())
-
     # TODO: clone_structure_from
 
 
