@@ -14,11 +14,6 @@
     "value": "False",
     "possibleValues": "True|False"
   },
-  "destinationDatabaseAutoCreate": {
-    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
-    "value": "False",
-    "possibleValues": "True|False"
-  },
   "destinationTableAutoCreate": {
     "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
     "value": "False",
@@ -26,6 +21,11 @@
   },
   "destinationSchemaAutoCreate": {
     "description": "If True and a target schema does not exist create target schema with same DDL as source schema.",
+    "value": "False",
+    "possibleValues": "True|False"
+  },
+  "destinationDatabaseAutoCreate": {
+    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
     "value": "False",
     "possibleValues": "True|False"
   },

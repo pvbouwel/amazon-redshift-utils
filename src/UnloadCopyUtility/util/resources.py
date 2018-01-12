@@ -1,5 +1,6 @@
 import re
 from abc import abstractmethod
+import logging
 
 from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
@@ -18,6 +19,7 @@ class Resource:
         pass
 
     def get_create_sql(self, generate=False, **kwargs):
+        logging.debug('get_create_sql for {self}'.format(self=self))
         if generate:
             ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
                 self.get_statement_to_retrieve_ddl_create_statement_text(**kwargs)
@@ -48,23 +50,25 @@ class Resource:
         :return:
         """
         if hasattr(self, 'parent'):
+            logging.debug('Object {self} has a parent that needs to be present.'.format(self=self))
             if not self.parent.is_present():
-                self.parent.create(kwargs)
-        if isinstance(self, SchemaResource) \
-                and 'destinationSchemaAutoCreate' in kwargs \
-                and not kwargs['destinationSchemaAutoCreate']:
-            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationSchemaAutoCreate')
-        if isinstance(self, TableResource) \
-                and 'destinationTableAutoCreate' in kwargs \
-                and not kwargs['destinationTableAutoCreate']:
-            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationTableAutoCreate')
-        if isinstance(self, DBResource) \
-                and 'destinationDatabaseAutoCreate' in kwargs \
-                and not kwargs['destinationDatabaseAutoCreate']:
-            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationDatabaseAutoCreate')
+                self.parent.create(sql_text=sql_text, **kwargs)
+            else:
+                logging.debug('Parent of {self} is present.'.format(self=self))
+        if isinstance(self, TableResource):
+            if 'destinationTableAutoCreate' in kwargs and not kwargs['destinationTableAutoCreate']:
+                raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationTableAutoCreate')
+        elif isinstance(self, SchemaResource):
+            if 'destinationSchemaAutoCreate' in kwargs and not kwargs['destinationSchemaAutoCreate']:
+                raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationSchemaAutoCreate')
+        elif isinstance(self, DBResource):
+            if 'destinationDatabaseAutoCreate' in kwargs and not kwargs['destinationDatabaseAutoCreate']:
+                raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationDatabaseAutoCreate')
 
+        logging.debug('Getting sql_text to create {self}.'.format(self=self))
         if sql_text is None:
             sql_text = self.get_create_sql(**kwargs)
+        logging.debug('Creating {self} with {sql_text}.'.format(self=self,sql_text=sql_text))
         self.get_cluster().execute_update(sql_text)
 
     @abstractmethod
@@ -102,6 +106,12 @@ class Resource:
             self.resource = resource
             self.configuration = configuration
 
+        def __str__(self):
+            return 'AutoCreateRequiresConfigurationException: Creating resource {r} requires {c}'.format(
+                r=self.resource,
+                c=self.configuration
+            )
+
 
 class DBResource(Resource):
     def __init__(self, rs_cluster):
@@ -134,6 +144,9 @@ class DBResource(Resource):
                self.get_db() == other.get_db() and \
                self.get_cluster() == other.get_cluster()
 
+    def __str__(self):
+        return self.get_cluster().get_host() + ':' + str(self.get_db())
+
     def get_query_sql_text_with_parameters_replaced(self, sql_text):
         param_dict = {}
         for match_group in re.finditer(r'({[^}{]*})', sql_text):
@@ -163,6 +176,10 @@ class DBResource(Resource):
             return False
         return self.name is not None
 
+    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
+        pass
+        # TODO: probably best to create a v_generate_database_ddl
+
 
 class SchemaResource(DBResource, ChildObject):
     def __init__(self, rs_cluster, schema):
@@ -181,6 +198,9 @@ class SchemaResource(DBResource, ChildObject):
         return type(self) == type(other) and \
                self.get_schema() == other.get_schema() and \
                DBResource.__eq__(self, other)
+
+    def __str__(self):
+        return super().__str__() + '.' + str(self.get_schema())
 
     def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
         return SchemaDDLHelper(**kwargs).get_schema_ddl_SQL(schema_name=self.get_schema())
@@ -236,6 +256,9 @@ class TableResource(SchemaResource):
                self.get_table() == other.get_table() and \
                SchemaResource.__eq__(self, other)
 
+    def __str__(self):
+        return super().__str__() + '.' + str(self.get_table())
+
     def run_command_against_table_resource(self, command, command_parameters):
         command_parameters['schema_name'] = self.get_schema()
         command_parameters['table_name'] = self.get_table()
@@ -269,6 +292,7 @@ class TableResource(SchemaResource):
                 new_schema_name=self.get_schema()
             )
         self.set_create_sql(ddl)
+        self.parent.clone_structure_from(other.parent, **kwargs)
 
 
 class TableResourceFactory:

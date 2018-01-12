@@ -19,7 +19,8 @@ class DDLHelper:
         self.filter_sql = ''
 
     def get_sql(self):
-        return SQLTextHelper.remove_trailing_semicolon(self.view_query_sql) + self.filter_sql + ';'
+        sql_to_get_all_ddl = SQLTextHelper.remove_trailing_semicolon(self.view_query_sql)
+        return 'SELECT * FROM (' + sql_to_get_all_ddl + ') ' + self.filter_sql + ';'
 
     def add_filters(self, filters):
         filter_list = []

@@ -90,11 +90,11 @@ class UnloadCopyTool:
                     ))
             else:
                 try:
-                    self.destination_table.clone_structure_from(self.source_table)
+                    self.destination_table.clone_structure_from(self.source_table, **global_config_values)
                     logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
-                    self.destination_table.create()
+                    self.destination_table.create(**global_config_values)
                 except Exception as e:
-                    logging.fatal(e)
+                    logging.fatal(str(e))
                     sys.exit(1)
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
@@ -117,7 +117,12 @@ def set_log_level(log_level_string):
     else:
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         stdout_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            '[%(asctime)s] p%(process)s {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
+            '%m-%d %H:%M:%S'
+        )
         stderr_handler = logging.StreamHandler()
+        stderr_handler.setFormatter(formatter)
         log_level = getattr(logging, log_level_string)
         stderr_handler.setLevel(log_level)
         logging.basicConfig(level=log_level, handlers=[stdout_handler, stderr_handler])
