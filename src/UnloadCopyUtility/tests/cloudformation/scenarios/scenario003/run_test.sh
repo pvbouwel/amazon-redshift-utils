@@ -9,11 +9,11 @@ TARGET_SCHEMA="public"
 TARGET_TABLE="${SOURCE_TABLE}"
 PYTHON="python2"
 
-DESCRIPTION="Perform Unload Copy with automatic password retrieval."
-DESCRIPTION="${DESCRIPTION}Use a Python generated key for unload/copy rather than KMS generated key."
-DESCRIPTION="${DESCRIPTION}Expect target location to be correct."
-DESCRIPTION="${DESCRIPTION}Use ${PYTHON}."
-DESCRIPTION="${DESCRIPTION}Should fail for environment without pycrypto."
+DESCRIPTION="Perform Unload Copy with automatic password retrieval. "
+DESCRIPTION="${DESCRIPTION}Use a Python generated key for unload/copy rather than KMS generated key. "
+DESCRIPTION="${DESCRIPTION}Expect target location to be correct. "
+DESCRIPTION="${DESCRIPTION}Use ${PYTHON}. "
+DESCRIPTION="${DESCRIPTION}Should fail for environment without pycrypto. "
 
 start_scenario "${DESCRIPTION}"
 

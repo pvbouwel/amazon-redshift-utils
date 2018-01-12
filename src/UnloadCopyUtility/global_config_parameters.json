@@ -11,11 +11,21 @@
   },
   "destinationTablePreTest": {
     "description": "Before starting work make sure every target table is present. Fail application execution if table not present and auto-create is disabled.",
-    "value": "True",
+    "value": "False",
+    "possibleValues": "True|False"
+  },
+  "destinationDatabaseAutoCreate": {
+    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
+    "value": "False",
     "possibleValues": "True|False"
   },
   "destinationTableAutoCreate": {
     "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
+    "value": "False",
+    "possibleValues": "True|False"
+  },
+  "destinationSchemaAutoCreate": {
+    "description": "If True and a target schema does not exist create target schema with same DDL as source schema.",
     "value": "False",
     "possibleValues": "True|False"
   },
@@ -28,6 +38,16 @@
     "description": "Path to v_generate_tbl_ddl.sql.  The default assumes that UnloadCopyUtility is part of a fully cloned amazon-redshift-utils (https://github.com/awslabs/amazon-redshift-utils.git)",
     "value": "./../AdminViews/v_generate_tbl_ddl.sql",
     "possibleValues": "/any/valid/system/path"
+  },
+  "locationGenerateSchemaDDLView": {
+    "description": "Path to v_generate_schema_ddl.sql.  The default assumes that UnloadCopyUtility is part of a fully cloned amazon-redshift-utils (https://github.com/awslabs/amazon-redshift-utils.git)",
+    "value": "./../AdminViews/v_generate_schema_ddl.sql",
+    "possibleValues": "/any/valid/system/path"
+  },
+  "failOnError": {
+    "description": "If False and multiple resources are considered then it will skip the further processing of the current resource but will try to continue with subsequent resources (useful for test-purposes/planning) .",
+    "value": "True",
+    "possibleValues": "True|False"
   },
   "region": {
     "description": "The short region name (e.g. eu-west-1) where you will use KMS or S3 for S3-stored configuration files",

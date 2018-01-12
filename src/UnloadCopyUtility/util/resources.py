@@ -17,10 +17,10 @@ class Resource:
     def get_statement_to_retrieve_ddl_create_statement_text(self):
         pass
 
-    def get_create_sql(self, generate=False):
+    def get_create_sql(self, generate=False, **kwargs):
         if generate:
             ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
-                self.get_statement_to_retrieve_ddl_create_statement_text()
+                self.get_statement_to_retrieve_ddl_create_statement_text(**kwargs)
             )
             ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(
                 '\n'.join([r['ddl'] for r in ddl_dict])
@@ -40,9 +40,31 @@ class Resource:
     def get_cluster(self):
         pass
 
-    def create(self, sql_text = None):
+    def create(self, sql_text=None, **kwargs):
+        """
+        kwargs can have global_config_parameters.  If that is the case then they will be checked prior to creation
+        :param sql_text:
+        :param kwargs:
+        :return:
+        """
+        if hasattr(self, 'parent'):
+            if not self.parent.is_present():
+                self.parent.create(kwargs)
+        if isinstance(self, SchemaResource) \
+                and 'destinationSchemaAutoCreate' in kwargs \
+                and not kwargs['destinationSchemaAutoCreate']:
+            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationSchemaAutoCreate')
+        if isinstance(self, TableResource) \
+                and 'destinationTableAutoCreate' in kwargs \
+                and not kwargs['destinationTableAutoCreate']:
+            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationTableAutoCreate')
+        if isinstance(self, DBResource) \
+                and 'destinationDatabaseAutoCreate' in kwargs \
+                and not kwargs['destinationDatabaseAutoCreate']:
+            raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationDatabaseAutoCreate')
+
         if sql_text is None:
-            sql_text = self.get_create_sql()
+            sql_text = self.get_create_sql(**kwargs)
         self.get_cluster().execute_update(sql_text)
 
     @abstractmethod
@@ -73,6 +95,12 @@ class Resource:
     class CreateSQLNotSet(NotFound):
         def __init__(self, msg):
             pass
+
+    class AutoCreateRequiresConfigurationException(Exception):
+        def __init__(self, resource, configuration):
+            super(Resource.AutoCreateRequiresConfigurationException, self).__init__()
+            self.resource = resource
+            self.configuration = configuration
 
 
 class DBResource(Resource):
@@ -139,6 +167,7 @@ class DBResource(Resource):
 class SchemaResource(DBResource, ChildObject):
     def __init__(self, rs_cluster, schema):
         DBResource.__init__(self, rs_cluster)
+        self.parent = DBResource(rs_cluster)
         self._schema = schema
         self.get_name_owner_acl_sql = GET_SCHEMA_NAME_OWNER_ACL
 
@@ -153,15 +182,23 @@ class SchemaResource(DBResource, ChildObject):
                self.get_schema() == other.get_schema() and \
                DBResource.__eq__(self, other)
 
-    def get_statement_to_retrieve_ddl_create_statement_text(self):
-        return SchemaDDLHelper().get_schema_ddl_SQL(schema_name=self.get_schema())
-    # TODO: clone_structure_from
+    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
+        return SchemaDDLHelper(**kwargs).get_schema_ddl_SQL(schema_name=self.get_schema())
+
+    def clone_structure_from(self, other, **kwargs):
+        ddl = other.get_create_sql(generate=True, **kwargs)
+        if self.get_schema() != other.get_schema():
+            ddl = DDLTransformer.get_ddl_for_different_relation(
+                ddl,
+                new_schema_name=self.get_schema()
+            )
+        self.set_create_sql(ddl)
 
 
 class TableResource(SchemaResource):
 
-    def get_statement_to_retrieve_ddl_create_statement_text(self):
-        return TableDDLHelper().get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
+    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
+        return TableDDLHelper(**kwargs).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
 
     commands = {}
     unload_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
@@ -190,6 +227,7 @@ class TableResource(SchemaResource):
 
     def __init__(self, rs_cluster, schema, table):
         SchemaResource.__init__(self, rs_cluster, schema)
+        self.parent = SchemaResource(rs_cluster, schema)
         self._table = table
         self.get_name_owner_acl_sql = GET_TABLE_NAME_OWNER_ACL
 
@@ -222,13 +260,15 @@ class TableResource(SchemaResource):
 
         self.run_command_against_table_resource('copy', copy_parameters)
 
-    def clone_structure_from(self, other):
-        other_ddl = other.get_create_sql(generate=True)
-        self.set_create_sql(DDLTransformer.get_ddl_for_different_relation(
-            other_ddl,
-            new_table_name=self.get_table(),
-            new_schema_name=self.get_schema()
-        ))
+    def clone_structure_from(self, other, **kwargs):
+        ddl = other.get_create_sql(generate=True, **kwargs)
+        if self.get_schema() != other.get_schema() or self.get_table() != other.get_table():
+            ddl = DDLTransformer.get_ddl_for_different_relation(
+                ddl,
+                new_table_name=self.get_table(),
+                new_schema_name=self.get_schema()
+            )
+        self.set_create_sql(ddl)
 
 
 class TableResourceFactory:

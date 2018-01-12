@@ -30,10 +30,24 @@ class DDLHelper:
             self.filter_sql = ''
 
 
+class SchemaDDLHelper(DDLHelper):
+    def __init__(self, **kwargs):
+        view_start = 'CREATE OR REPLACE VIEW admin.v_generate_schema_ddl AS '
+        DDLHelper.__init__(self, kwargs['locationGenerateSchemaDDLView'], view_start)
+
+    # noinspection PyPep8Naming
+    def get_schema_ddl_SQL(self, schema_name=None):
+        filters = {}
+        if schema_name is not None:
+            filters['schemaname'] = schema_name
+        self.add_filters(filters)
+        return self.get_sql()
+
+
 class TableDDLHelper(DDLHelper):
-    def __init__(self, path_to_v_generate_table_ddl='./../AdminViews/v_generate_tbl_ddl.sql'):
+    def __init__(self, **kwargs):
         view_start = 'CREATE OR REPLACE VIEW admin.v_generate_tbl_ddl AS '
-        DDLHelper.__init__(self, path_to_v_generate_table_ddl, view_start)
+        DDLHelper.__init__(self, kwargs['locationGenerateTableDDLView'], view_start)
 
     # noinspection PyPep8Naming
     def get_table_ddl_SQL(self, table_name=None, schema_name=None):
@@ -190,17 +204,3 @@ class TableDDLTransformer(DDLTransformer):
             new_table_name=new_table_name,
             new_schema_name=new_schema_name
         )
-
-
-class SchemaDDLHelper(DDLHelper):
-    def __init__(self, path_to_v_generate_table_ddl='./../AdminViews/v_generate_schema_ddl.sql'):
-        view_start = 'CREATE OR REPLACE VIEW admin.v_generate_schema_ddl AS '
-        DDLHelper.__init__(self, path_to_v_generate_table_ddl, view_start)
-
-    # noinspection PyPep8Naming
-    def get_schema_ddl_SQL(self, schema_name=None):
-        filters = {}
-        if schema_name is not None:
-            filters['schemaname'] = schema_name
-        self.add_filters(filters)
-        return self.get_sql()

@@ -213,6 +213,9 @@ class GlobalConfigParametersReader:
 
         return default_config_parameters
 
+    def get_default_config_key_values(self):
+        return GlobalConfigParametersReader.get_key_value_dict(self.get_default_config_parameters())
+
     def get_config_key_values_updated_with_cli_args(self, argv):
         self.get_default_config_parameter_updated_with_cli_args(argv)
         return GlobalConfigParametersReader.get_key_value_dict(self.config_parameters)

@@ -4,12 +4,14 @@ from util.resources import DBResource, SchemaResource, TableResource
 from util.sql_queries import CREATE_SCHEMA
 from util.pgpass import PGPassReader
 from random import choice
+from global_config import GlobalConfigParametersReader
 import string
 import os
 
 
 class RedshiftUnloadCopyClusterTests(TestCase):
     def setUp(self):
+        self.default_config = GlobalConfigParametersReader().get_default_config_key_values()
         self.configure_test_cluster()
         self.create_test_table()
 
@@ -24,7 +26,8 @@ class RedshiftUnloadCopyClusterTests(TestCase):
         self.test_table_name = self.get_random_identifier()
         self.test_schema_name = self.get_random_identifier()
         self.test_schema = SchemaResource(self.cluster, self.test_schema_name)
-        self.test_schema.create(self.test_schema.get_query_sql_text_with_parameters_replaced(CREATE_SCHEMA))
+        schema_ddl = self.test_schema.get_query_sql_text_with_parameters_replaced(CREATE_SCHEMA)
+        self.test_schema.create(schema_ddl)
         self.test_table = TableResource(self.cluster, self.test_schema_name, self.test_table_name)
         ddl = 'CREATE TABLE {s}.{t}(id int);'
         self.test_table.create(ddl.format(s=self.test_schema_name, t=self.test_table_name))
@@ -49,7 +52,7 @@ class RedshiftUnloadCopyClusterTests(TestCase):
     def test_retrieve_tbl_ddl(self):
         table = TableResource(self.cluster, self.test_schema_name, self.test_table_name)
         if table.is_present():
-            ddl_text = table.get_create_sql(generate=True)
+            ddl_text = table.get_create_sql(generate=True, **self.default_config)
         start = r'CREATE TABLE IF NOT EXISTS "{s}"."{t}"'.format( s=self.test_schema_name, t=self.test_table_name)
         self.assertRegexpMatches(ddl_text, start, 'Create table is not present')
         self.assertRegexpMatches(ddl_text, r'"id" INTEGER', 'Column definition is not present')

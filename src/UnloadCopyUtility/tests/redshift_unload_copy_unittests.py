@@ -24,6 +24,7 @@ from util.resources import DBResource
 import redshift_unload_copy
 import datetime
 import time
+import pytz
 
 
 class TestRedshiftUnloadCopy(TestCase):
@@ -58,17 +59,19 @@ class TestRedshiftUnloadCopy(TestCase):
     def test_temporary_credential_expiration_predicate(self):
         example_url = 'my-cluSter.a1bcdefghijk.eU-west-1.redshift.amazonaws.com'
         rs_cluster = RedshiftCluster(example_url)
-        rs_cluster._user_creds_expiration = (datetime.datetime.now() + datetime.timedelta(minutes=1, milliseconds=300))
+        rs_cluster.has_temporary_password = True
+        expiration_time = (datetime.datetime.now(pytz.utc) + datetime.timedelta(minutes=1, milliseconds=300))
+        rs_cluster._user_creds_expiration = expiration_time
         self.assertFalse(rs_cluster.is_temporary_credential_expired())
         time.sleep(0.4)
         self.assertTrue(rs_cluster.is_temporary_credential_expired())
 
     def test_construction_of_get_query_sql_text_with_parameters_replaced(self):
         cluster = RedshiftCluster(cluster_endpoint='test')
-        dbName = 'testdb'
-        cluster.set_db(dbName)
+        db_name = 'testdb'
+        cluster.set_db(db_name)
         sql = DBResource(rs_cluster=cluster).get_query_sql_text_with_parameters_replaced(GET_DATABASE_NAME_OWNER_ACL)
-        expected_sql = GET_DATABASE_NAME_OWNER_ACL.format(db=dbName)
+        expected_sql = GET_DATABASE_NAME_OWNER_ACL.format(db=db_name)
         self.assertEquals(sql, expected_sql)
 
     def test_redaction_of_sensitive_information_master_symmetric_key_with_single_quote(self):
@@ -130,6 +133,6 @@ token '<temporary-token>';"""
         self.assertEquals(GET_SAFE_LOG_STRING(input_sql), expected_sql)
 
     def test_redaction_password_in_connect_string(self):
-        input_string ="host=localhost port=5439 dbname=dev user=master password=MyS3cr3tPass.word option1"
-        expected_string="host=localhost port=5439 dbname=dev user=master password=REDACTED option1"
+        input_string = "host=localhost port=5439 dbname=dev user=master password=MyS3cr3tPass.word option1"
+        expected_string = "host=localhost port=5439 dbname=dev user=master password=REDACTED option1"
         self.assertEquals(GET_SAFE_LOG_STRING(input_string), expected_string)

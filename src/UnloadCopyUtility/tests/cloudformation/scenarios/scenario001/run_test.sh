@@ -9,7 +9,7 @@ TARGET_SCHEMA="public"
 TARGET_TABLE="${SOURCE_TABLE}"
 PYTHON="python3"
 
-DESCRIPTION="Perform Unload Copy with password encrypted using KMS, expect target location to be correct"
+DESCRIPTION="Perform Unload Copy with password encrypted using KMS, expect target location to be correct. "
 DESCRIPTION="${DESCRIPTION}Use ${PYTHON}."
 
 start_scenario "${DESCRIPTION}"

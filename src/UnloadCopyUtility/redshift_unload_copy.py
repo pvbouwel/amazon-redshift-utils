@@ -63,7 +63,10 @@ class UnloadCopyTool:
     EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_SCHEMA_NAME_THAN_SOURCE = 599
 
     # noinspection PyDefaultArgument
-    def __init__(self, config_file, region_name, global_config_values={}):
+    def __init__(self,
+                 config_file,
+                 region_name,
+                 global_config_values=GlobalConfigParametersReader().get_default_config_key_values()):
         self.region = region_name
         self.s3_helper = S3Helper(self.region)
 
@@ -76,24 +79,23 @@ class UnloadCopyTool:
         self.destination_table = TableResourceFactory.get_target_table_resource_from_config_helper(self.config_helper,
                                                                                                    self.region)
 
-        if self.destination_table.is_present():
-            if global_config_values['destinationTableAutoCreate']:
-                logging.info('Destination table {s}.{t} already exists, ignoring auto-create.'.format(
-                    s=self.destination_table.get_schema(),
-                    t=self.destination_table.get_table()
-                ))
-        else:
-            # TODO: destinationSchemaAutoCreate
-            if not global_config_values['destinationTableAutoCreate']:
-                logging.fatal('Destination table {s}.{t} does not exist and auto-create is disabled.'.format(
-                    s=self.destination_table.get_schema(),
-                    t=self.destination_table.get_table()
-                ))
-                sys.exit(UnloadCopyTool.EXIT_CODE_TABLE_NOT_EXIST_AND_NO_AUTO_CREATE)
+        if global_config_values['destinationTablePreTest'] \
+                or global_config_values['destinationTableAutoCreate'] \
+                or global_config_values['destinationSchemaAutoCreate']:
+            if self.destination_table.is_present():
+                if global_config_values['destinationTableAutoCreate']:
+                    logging.info('Destination table {s}.{t} already exists, ignoring auto-create.'.format(
+                        s=self.destination_table.get_schema(),
+                        t=self.destination_table.get_table()
+                    ))
             else:
-                self.destination_table.clone_structure_from(self.source_table)
-                logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
-                self.destination_table.create()
+                try:
+                    self.destination_table.clone_structure_from(self.source_table)
+                    logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
+                    self.destination_table.create()
+                except Exception as e:
+                    logging.fatal(e)
+                    sys.exit(1)
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
 

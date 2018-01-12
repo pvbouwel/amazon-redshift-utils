@@ -48,6 +48,7 @@ class RedshiftCluster:
         self._user_creds_expiration = datetime.now(pytz.utc)
         self._user_db_groups = []
         self._configured_timeout = None
+        self.has_temporary_password = False
 
     def __eq__(self, other):
         return type(self) == type(other) and \
@@ -112,6 +113,8 @@ class RedshiftCluster:
         self._user_creds_expiration = user_creds_expiration
 
     def is_temporary_credential_expired(self):
+        if not self.has_temporary_password:
+            return False
         one_minute_from_now = datetime.now(pytz.utc) + timedelta(minutes=1)
         if self.get_user_creds_expiration() is None:
             return True

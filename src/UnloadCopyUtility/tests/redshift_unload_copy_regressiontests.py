@@ -89,7 +89,7 @@ class TestRedshiftUnloadCopy(TestCase):
 
     def test_staging_area_should_be_cleaned_up_when_delete_on_success(self):
         s3_client = boto3.client('s3', 'eu-west-1')
-        with patch('util.table_resource.TableResource',
+        with patch('util.resources.TableResource',
                    new=TestRedshiftUnloadCopy.TableResourceMock) as unload_mock:
                 uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
                 full_s3_path = uct.s3_details.dataStagingPath
@@ -101,7 +101,7 @@ class TestRedshiftUnloadCopy(TestCase):
         kms_mock = MagicMock(return_value='Eh39yqNUt2BgQMluXqI89Oz1ydvthaatSIm8B5kwMz0=')
         execute_query_mock = MagicMock()
         util.kms_helper.KMSHelper.generate_base64_encoded_data_key = kms_mock
-        util.redshift_cluster.RedshiftCluster._conn_to_rs = MagicMock()
+        util.redshift_cluster.RedshiftCluster._conn = MagicMock()
         util.redshift_cluster.RedshiftCluster.execute_update = execute_query_mock
         util.redshift_cluster.RedshiftCluster._disconnect_from_rs = MagicMock()
 
