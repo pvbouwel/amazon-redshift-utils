@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from util.sql.ddl_generators import SQLTextHelper, TableDDLTransformer
+from util.sql.ddl_generators import SQLTextHelper, DDLTransformer
 
 
 class TableDDLHelperTests(TestCase):
@@ -56,7 +56,7 @@ union all
         self.assertEquals(expected_sql, result_sql)
 
     def test_transform_table_ddl(self):
-        ddl = 'CREATE TABLE IF NOT EXISTS "public"."test_""_quote"("id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
-        transformed_ddl = TableDDLTransformer.get_create_table_ddl_for_different_relation(ddl, new_table_name='b')
-        expected = 'CREATE TABLE IF NOT EXISTS "public"."b"("id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        ddl = 'CREATE TABLE IF NOT EXISTS "public"."test_""_quote" ( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        transformed_ddl = DDLTransformer.get_ddl_for_different_relation(ddl, new_table_name='b')
+        expected = 'CREATE TABLE IF NOT EXISTS "public"."b"( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
         self.assertEquals(transformed_ddl, expected)

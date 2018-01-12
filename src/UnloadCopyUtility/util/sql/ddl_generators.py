@@ -53,13 +53,13 @@ class DDLTransformer:
     def get_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
         logging.debug('Transforming ddl: {ddl}'.format(ddl=ddl))
         clean_ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
-        if clean_ddl.lower().startswith('CREATE TABLE IF NOT EXISTS '):
+        if clean_ddl.upper().startswith('CREATE TABLE IF NOT EXISTS '):
             return TableDDLTransformer.get_create_table_ddl_for_different_relation(
                 clean_ddl,
                 new_table_name=new_table_name,
                 new_schema_name=new_schema_name
             )
-        elif clean_ddl.lower().startswith('CREATE SCHEMA '):
+        elif clean_ddl.upper().startswith('CREATE SCHEMA '):
             return SchemaDDLTransformer.get_create_schema_ddl_for_different_relation(
                 clean_ddl,
                 new_schema_name=new_schema_name
@@ -96,7 +96,7 @@ class TableDDLTransformer:
         """
         try:
             round_bracket_separated_parts = ddl.split('(')
-            first_round_bracket_part = round_bracket_separated_parts[0]
+            first_round_bracket_part = round_bracket_separated_parts[0].rstrip()
             space_separated_parts = first_round_bracket_part.split(' ')
             relation_specification = space_separated_parts[-1]
             match_dict = re.match(r'"(?P<schema_name>.*)"\."(?P<table_name>.*)"', relation_specification).groupdict()
