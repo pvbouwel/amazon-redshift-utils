@@ -9,7 +9,7 @@ TARGET_SCHEMA="${SOURCE_SCHEMA}"
 TARGET_TABLE="${SOURCE_TABLE}"
 PYTHON="python3"
 
-DESCRIPTION="Perform Unload Copy with pass word encrypted using KMS, create table in target location. "
+DESCRIPTION="Perform Unload Copy with password encrypted using KMS, create table in target location. "
 DESCRIPTION="${DESCRIPTION}Target schema exists. "
 DESCRIPTION="${DESCRIPTION}Use ${PYTHON}. "
 

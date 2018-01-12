@@ -1,11 +1,16 @@
 from util.sql.sql_text_helpers import SQLTextHelper
 import re
+import os
 import logging
 from abc import abstractmethod
 
 
 class DDLHelper:
     def __init__(self, path_to_v_generate, view_start):
+        logging.debug('From {cwd} open v_generate {path}'.format(
+            cwd=os.getcwd(),
+            path=path_to_v_generate
+        ))
         with open(path_to_v_generate, 'r') as v_generate:
             self.view_sql = v_generate.read()
         self.view_sql = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(self.view_sql)
