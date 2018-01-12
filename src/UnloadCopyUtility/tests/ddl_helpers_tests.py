@@ -58,5 +58,23 @@ union all
     def test_transform_table_ddl(self):
         ddl = 'CREATE TABLE IF NOT EXISTS "public"."test_""_quote" ( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
         transformed_ddl = DDLTransformer.get_ddl_for_different_relation(ddl, new_table_name='b')
-        expected = 'CREATE TABLE IF NOT EXISTS "public"."b"( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        expected = 'CREATE TABLE IF NOT EXISTS public.b( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        self.assertEquals(transformed_ddl, expected)
+
+    def test_transform_table_ddl_without_double_quote_around_table_name(self):
+        ddl = 'CREATE TABLE IF NOT EXISTS public."test_""_quote" ( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        transformed_ddl = DDLTransformer.get_ddl_for_different_relation(ddl, new_table_name='b')
+        expected = 'CREATE TABLE IF NOT EXISTS public.b( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        self.assertEquals(transformed_ddl, expected)
+
+    def test_transform_table_ddl_without_double_quote_around_schema_name(self):
+        ddl = 'CREATE TABLE IF NOT EXISTS "pu""blic".test ( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        transformed_ddl = DDLTransformer.get_ddl_for_different_relation(ddl, new_table_name='b')
+        expected = 'CREATE TABLE IF NOT EXISTS "pu""blic".b( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        self.assertEquals(transformed_ddl, expected)
+
+    def test_transform_table_ddl_without_double_quote_around_schema_nor_table_name(self):
+        ddl = 'CREATE TABLE IF NOT EXISTS public.test ( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
+        transformed_ddl = DDLTransformer.get_ddl_for_different_relation(ddl, new_table_name='b')
+        expected = 'CREATE TABLE IF NOT EXISTS public.b( "id""ea" INTEGER ENCODE lzo)DISTSTYLE EVEN;'
         self.assertEquals(transformed_ddl, expected)

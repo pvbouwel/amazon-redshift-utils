@@ -145,3 +145,23 @@ class SQLTextHelper:
         if sql_text.endswith(';'):
             sql_text = sql_text[:-1]
         return sql_text
+
+    @staticmethod
+    def quote_indent(identifier_string):
+        if identifier_string.startswith('"') and identifier_string.endswith('"'):
+            logging.warning('QUOTE_INDENT() called on identifier already surrounded by double quotes {id}'.format(
+                id=identifier_string
+            ))
+        if '"' in identifier_string:
+            return '"{string}"'.format(string=identifier_string.replace('"', '""'))
+        else:
+            return identifier_string
+
+    @staticmethod
+    def quote_unindent(identifier_string):
+        if identifier_string.startswith('"') and identifier_string.endswith('"'):
+            identifier_string = identifier_string[1:-1]
+            return identifier_string.replace('""', '"')
+        if '"' in identifier_string:
+            raise ValueError('quote_unindent cannot have a value with double quotes if not surrounded by double quotes')
+        return identifier_string

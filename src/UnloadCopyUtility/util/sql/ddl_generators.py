@@ -1,6 +1,7 @@
 from util.sql.sql_text_helpers import SQLTextHelper
 import re
 import logging
+from abc import abstractmethod
 
 
 class DDLHelper:
@@ -66,24 +67,114 @@ class DDLTransformer:
             )
         raise DDLTransformer.UnsupportedDDLForTransformationException(clean_ddl)
 
+    @abstractmethod
+    def has_table_in_ddl(self):
+        pass
+
+    @abstractmethod
+    def has_schema_in_ddl(self):
+        pass
+
+    def get_relation_regex_string(self, quoted_schema=True, quoted_table=True):
+        regex_string = r''
+        if self.has_schema_in_ddl():
+            if not quoted_schema:
+                regex_schema = r'(?P<schema_name>.*)'
+            else:
+                regex_schema = r'(?P<schema_name>".*")'
+            regex_string += regex_schema
+
+        if self.has_table_in_ddl():
+            if not quoted_table:
+                regex_table = r'(?P<table_name>.*)'
+            else:
+                regex_table = r'(?P<table_name>".*")'
+            regex_string += r'\.' + regex_table
+        return regex_string
+
+    def get_ddl_for_different_relation_where_relation_just_before_round_bracket(
+            self,
+            ddl,
+            new_table_name=None,
+            new_schema_name=None):
+        """
+        Get ddl but adapt it to create a relation with different name but same structure
+        :param ddl:  ddl from admin.v_generate_tbl_ddl view
+        :param new_table_name: if None don't replace table_name
+        :param new_schema_name: if None don't replace schema_name
+        :return:
+        """
+        relation_specification = 'Unknown'
+        try:
+            round_bracket_separated_parts = ddl.split('(')
+            first_round_bracket_part = round_bracket_separated_parts[0].rstrip()
+            space_separated_parts = first_round_bracket_part.split(' ')
+            relation_specification = space_separated_parts[-1]
+            relation_regex = self.get_relation_regex_string(
+                    quoted_schema=relation_specification.startswith('"'),
+                    quoted_table=relation_specification.endswith('"')
+                )
+            match_dict = re.match(relation_regex, relation_specification).groupdict()
+            relation_specification = ''
+
+            if self.has_schema_in_ddl():
+                original_schema_name = SQLTextHelper.quote_unindent(match_dict['schema_name'])
+                new_schema_name = new_schema_name or original_schema_name
+                relation_specification += '{schema}'.format(schema=SQLTextHelper.quote_indent(new_schema_name))
+            if self.has_table_in_ddl():
+                original_table_name = SQLTextHelper.quote_unindent(match_dict['table_name'])
+                new_table_name = new_table_name or original_table_name
+                relation_specification += '.{table}'.format(table=SQLTextHelper.quote_indent(new_table_name))
+
+            space_separated_parts[-1] = relation_specification
+            round_bracket_separated_parts[0] = ' '.join(space_separated_parts)
+            new_ddl = '('.join(round_bracket_separated_parts)
+            return new_ddl
+        except:
+            logging.debug('Clean ddl: {ddl}\nRelation name: {rel_name}'.format(
+                ddl=ddl,
+                rel_name=relation_specification
+            ))
+            raise DDLTransformer.InvalidDDLSQLException(ddl)
+
     class UnsupportedDDLForTransformationException(Exception):
         def __init__(self, ddl):
             super(DDLTransformer.UnsupportedDDLForTransformationException, self).__init__()
             self.ddl = ddl
 
+    class InvalidDDLSQLException(Exception):
+        def __init__(self, ddl):
+            super(TableDDLTransformer.InvalidDDLSQLException, self).__init__()
+            self.ddl = ddl
 
-class SchemaDDLTransformer:
+
+class SchemaDDLTransformer(DDLTransformer):
     def __init__(self):
-        pass
+        DDLTransformer.__init__(self)
 
     @staticmethod
-    def get_create_schema_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
-        pass
+    def get_create_schema_ddl_for_different_relation(ddl, new_schema_name=None):
+        return SchemaDDLTransformer().get_ddl_for_different_relation_where_relation_just_before_round_bracket(
+            ddl,
+            new_schema_name=new_schema_name
+        )
+
+    def has_schema_in_ddl(self):
+        return False
+
+    def has_table_in_ddl(self):
+        return False
 
 
-class TableDDLTransformer:
+class TableDDLTransformer(DDLTransformer):
+    def has_schema_in_ddl(self):
+        return True
+
+    def has_table_in_ddl(self):
+        return True
+
     def __init__(self):
-        pass
+        DDLTransformer.__init__(self)
 
     @staticmethod
     def get_create_table_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
@@ -94,35 +185,11 @@ class TableDDLTransformer:
         :param new_schema_name: if None don't replace schema_name
         :return:
         """
-        try:
-            round_bracket_separated_parts = ddl.split('(')
-            first_round_bracket_part = round_bracket_separated_parts[0].rstrip()
-            space_separated_parts = first_round_bracket_part.split(' ')
-            relation_specification = space_separated_parts[-1]
-            match_dict = re.match(r'"(?P<schema_name>.*)"\."(?P<table_name>.*)"', relation_specification).groupdict()
-            original_table_name = match_dict['table_name']
-            original_schema_name = match_dict['schema_name']
-            new_table_name = new_table_name or original_table_name
-            new_schema_name = new_schema_name or original_schema_name
-            relation_specification = '"{schema}"."{table}"'.format(
-                schema=new_schema_name.replace('"', '""'),  # In SQL we need to escape double quotes
-                table=new_table_name.replace('"', '""')
-            )
-            space_separated_parts[-1] = relation_specification
-            round_bracket_separated_parts[0] = ' '.join(space_separated_parts)
-            new_ddl = '('.join(round_bracket_separated_parts)
-        except:
-            logging.debug('Clean ddl: {ddl}\nRelation name: {rel_name}'.format(
-                ddl=ddl,
-                rel_name=relation_specification
-            ))
-            raise TableDDLTransformer.InvalidDDLSQLException(ddl)
-        return new_ddl
-
-    class InvalidDDLSQLException(Exception):
-        def __init__(self, ddl):
-            super(TableDDLTransformer.InvalidDDLSQLException, self).__init__()
-            self.ddl = ddl
+        return TableDDLTransformer().get_ddl_for_different_relation_where_relation_just_before_round_bracket(
+            ddl,
+            new_table_name=new_table_name,
+            new_schema_name=new_schema_name
+        )
 
 
 class SchemaDDLHelper(DDLHelper):
