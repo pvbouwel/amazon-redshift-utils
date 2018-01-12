@@ -2,7 +2,7 @@
 
 source ${HOME}/variables.sh
 
-SCENARIO=scenario005
+SCENARIO=scenario006
 SOURCE_SCHEMA="ssb"
 SOURCE_TABLE="customer"
 TARGET_SCHEMA="public"

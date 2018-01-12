@@ -51,13 +51,34 @@ class DDLTransformer:
 
     @staticmethod
     def get_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
+        logging.debug('Transforming ddl: {ddl}'.format(ddl=ddl))
         clean_ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
-        if clean_ddl.lower().startswith('CREATE TABLE IF NOT EXISTS "'):
+        if clean_ddl.lower().startswith('CREATE TABLE IF NOT EXISTS '):
             return TableDDLTransformer.get_create_table_ddl_for_different_relation(
                 clean_ddl,
                 new_table_name=new_table_name,
                 new_schema_name=new_schema_name
             )
+        elif clean_ddl.lower().startswith('CREATE SCHEMA '):
+            return SchemaDDLTransformer.get_create_schema_ddl_for_different_relation(
+                clean_ddl,
+                new_schema_name=new_schema_name
+            )
+        raise DDLTransformer.UnsupportedDDLForTransformationException(clean_ddl)
+
+    class UnsupportedDDLForTransformationException(Exception):
+        def __init__(self, ddl):
+            super(DDLTransformer.UnsupportedDDLForTransformationException, self).__init__()
+            self.ddl = ddl
+
+
+class SchemaDDLTransformer:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get_create_schema_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
+        pass
 
 
 class TableDDLTransformer:
