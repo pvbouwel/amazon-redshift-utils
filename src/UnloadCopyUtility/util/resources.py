@@ -4,7 +4,7 @@ from abc import abstractmethod
 from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
-from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, TableDDLTransformer
+from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, DDLTransformer
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
@@ -222,7 +222,7 @@ class TableResource(SchemaResource):
 
     def clone_structure_from(self, other):
         other_ddl = other.get_create_sql(generate=True)
-        self.set_create_sql(TableDDLTransformer.get_create_table_ddl_for_different_relation(
+        self.set_create_sql(DDLTransformer.get_ddl_for_different_relation(
             other_ddl,
             new_table_name=self.get_table(),
             new_schema_name=self.get_schema()
