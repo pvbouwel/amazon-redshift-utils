@@ -153,6 +153,8 @@ class SchemaResource(DBResource, ChildObject):
     def get_statement_to_retrieve_ddl_create_statement_text(self):
         return SchemaDDLHelper().get_schema_ddl_SQL(schema_name=self.get_schema())
 
+    # TODO: clone_structure_from
+
 
 class TableResource(SchemaResource):
 

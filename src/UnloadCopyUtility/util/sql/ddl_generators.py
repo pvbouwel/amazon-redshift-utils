@@ -1,5 +1,6 @@
 from util.sql.sql_text_helpers import SQLTextHelper
 import re
+import logging
 
 
 class DDLHelper:
@@ -44,6 +45,21 @@ class TableDDLHelper(DDLHelper):
         return self.get_sql()
 
 
+class DDLTransformer:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get_ddl_for_different_relation(ddl, new_table_name=None, new_schema_name=None):
+        clean_ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
+        if clean_ddl.lower().startswith('CREATE TABLE IF NOT EXISTS "'):
+            return TableDDLTransformer.get_create_table_ddl_for_different_relation(
+                clean_ddl,
+                new_table_name=new_table_name,
+                new_schema_name=new_schema_name
+            )
+
+
 class TableDDLTransformer:
     def __init__(self):
         pass
@@ -58,8 +74,7 @@ class TableDDLTransformer:
         :return:
         """
         try:
-            clean_dll = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
-            round_bracket_separated_parts = clean_dll.split('(')
+            round_bracket_separated_parts = ddl.split('(')
             first_round_bracket_part = round_bracket_separated_parts[0]
             space_separated_parts = first_round_bracket_part.split(' ')
             relation_specification = space_separated_parts[-1]
@@ -76,6 +91,10 @@ class TableDDLTransformer:
             round_bracket_separated_parts[0] = ' '.join(space_separated_parts)
             new_ddl = '('.join(round_bracket_separated_parts)
         except:
+            logging.debug('Clean ddl: {ddl}\nRelation name: {rel_name}'.format(
+                ddl=ddl,
+                rel_name=relation_specification
+            ))
             raise TableDDLTransformer.InvalidDDLSQLException(ddl)
         return new_ddl
 
