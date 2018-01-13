@@ -6,7 +6,7 @@ from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
 from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, DDLTransformer
-from util.sql.sql_text_helpers import SQLTextHelper
+from util.sql.sql_text_helpers import SQLTextHelper, GET_SAFE_LOG_STRING
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
@@ -68,12 +68,15 @@ class Resource:
         logging.debug('Getting sql_text to create {self}.'.format(self=self))
         if sql_text is None:
             sql_text = self.get_create_sql(**kwargs)
-        logging.debug('Creating {self} with {sql_text}.'.format(self=self,sql_text=sql_text))
+        logging.info('Creating {self} with: '.format(self=self))
+        logging.info('{sql_text}'.format(sql_text=sql_text))
+
         self.get_cluster().execute_update(sql_text)
 
-    @abstractmethod
-    def drop(self):
-        pass
+    # TODO: implement drop for all resources
+    # @abstractmethod
+    # def drop(self):
+    #     pass
 
     @abstractmethod
     def is_present(self, force_update=False):
@@ -98,7 +101,7 @@ class Resource:
 
     class CreateSQLNotSet(NotFound):
         def __init__(self, msg):
-            pass
+            super(Resource.CreateSQLNotSet, self).__init__(msg)
 
     class AutoCreateRequiresConfigurationException(Exception):
         def __init__(self, resource, configuration):
@@ -114,6 +117,10 @@ class Resource:
 
 
 class DBResource(Resource):
+    def clone_structure_from(self, other):
+        # TODO: Implement
+        pass
+
     def __init__(self, rs_cluster):
         """
 
@@ -266,7 +273,10 @@ class TableResource(SchemaResource):
         command_to_execute = self.commands[command]
         if 'region' in command_parameters and command == 'copy' and command_parameters['region'] is not None:
             command_to_execute += " REGION '{region}' "
-        self.get_cluster().execute_update(command_to_execute.format(**command_parameters))
+        update_sql_command = command_to_execute.format(**command_parameters)
+        logging.info('Executing {command} against {resource}:'.format(command=command, resource=self))
+        logging.info(GET_SAFE_LOG_STRING(update_sql_command))
+        self.get_cluster().execute_update(update_sql_command)
 
     def unload_data(self, s3_details):
         unload_parameters = {'s3_access_credentials': s3_details.access_credentials,
