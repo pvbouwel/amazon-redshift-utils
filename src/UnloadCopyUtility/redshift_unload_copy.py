@@ -81,21 +81,24 @@ class UnloadCopyTool:
 
         if global_config_values['destinationTablePreTest'] \
                 or global_config_values['destinationTableAutoCreate'] \
-                or global_config_values['destinationSchemaAutoCreate']:
+                or global_config_values['destinationSchemaAutoCreate'] \
+                or global_config_values['destinationTableForceDropCreate']:
             if self.destination_table.is_present():
-                if global_config_values['destinationTableAutoCreate']:
+                if global_config_values['destinationTableAutoCreate'] \
+                        and not global_config_values['destinationTableForceDropCreate']:
                     logging.info('Destination table {s}.{t} already exists, ignoring auto-create.'.format(
                         s=self.destination_table.get_schema(),
                         t=self.destination_table.get_table()
                     ))
-            else:
-                try:
-                    self.destination_table.clone_structure_from(self.source_table, **global_config_values)
-                    logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
-                    self.destination_table.create(**global_config_values)
-                except Exception as e:
-                    logging.fatal(str(e))
-                    sys.exit(1)
+                if global_config_values['destinationTableForceDropCreate']:
+                    self.destination_table.drop()
+            try:
+                self.destination_table.clone_structure_from(self.source_table, **global_config_values)
+                logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
+                self.destination_table.create(**global_config_values)
+            except Exception as e:
+                logging.fatal(str(e))
+                sys.exit(1)
 
         self.s3_details = S3Details(self.config_helper, self.source_table, encryptionKeyID=encryptionKeyID)
 

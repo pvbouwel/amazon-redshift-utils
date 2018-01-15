@@ -74,9 +74,9 @@ class Resource:
         self.get_cluster().execute_update(sql_text)
 
     # TODO: implement drop for all resources
-    # @abstractmethod
-    # def drop(self):
-    #     pass
+    @abstractmethod
+    def drop(self):
+        pass
 
     @abstractmethod
     def is_present(self, force_update=False):
@@ -207,7 +207,7 @@ class SchemaResource(DBResource, ChildObject):
                DBResource.__eq__(self, other)
 
     def __str__(self):
-        return super().__str__() + '.' + str(self.get_schema())
+        return super(SchemaResource, self).__str__() + '.' + str(self.get_schema())
 
     def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
         return SchemaDDLHelper(**kwargs).get_schema_ddl_SQL(schema_name=self.get_schema())
@@ -264,7 +264,7 @@ class TableResource(SchemaResource):
                SchemaResource.__eq__(self, other)
 
     def __str__(self):
-        return super().__str__() + '.' + str(self.get_table())
+        return super(TableResource, self).__str__() + '.' + str(self.get_table())
 
     def run_command_against_table_resource(self, command, command_parameters):
         command_parameters['schema_name'] = self.get_schema()
