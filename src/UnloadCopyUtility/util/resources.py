@@ -7,6 +7,7 @@ from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
 from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, DDLTransformer
 from util.sql.sql_text_helpers import SQLTextHelper, GET_SAFE_LOG_STRING
+from global_config import config_parameters
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
@@ -18,11 +19,11 @@ class Resource(object):
     def get_statement_to_retrieve_ddl_create_statement_text(self):
         pass
 
-    def get_create_sql(self, generate=False, **kwargs):
+    def get_create_sql(self, generate=False):
         logging.debug('get_create_sql for {self}'.format(self=self))
         if generate:
             ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
-                self.get_statement_to_retrieve_ddl_create_statement_text(**kwargs)
+                self.get_statement_to_retrieve_ddl_create_statement_text(**config_parameters)
             )
             ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(
                 '\n'.join([r['ddl'] for r in ddl_dict])
@@ -42,32 +43,34 @@ class Resource(object):
     def get_cluster(self):
         pass
 
-    def create(self, sql_text=None, **kwargs):
+    def create(self, sql_text=None):
         """
-        kwargs can have global_config_parameters.  If that is the case then they will be checked prior to creation
+        config_parameters has global_config_parameters.  If that is the case then they will be checked prior to creation
         :param sql_text:
-        :param kwargs:
         :return:
         """
         if hasattr(self, 'parent'):
             logging.debug('Object {self} has a parent that needs to be present.'.format(self=self))
             if not self.parent.is_present():
-                self.parent.create(sql_text=sql_text, **kwargs)
+                self.parent.create(sql_text=sql_text, **config_parameters)
             else:
                 logging.debug('Parent of {self} is present.'.format(self=self))
         if isinstance(self, TableResource):
-            if 'destinationTableAutoCreate' in kwargs and not kwargs['destinationTableAutoCreate']:
+            if 'destinationTableAutoCreate' in config_parameters \
+                    and not config_parameters['destinationTableAutoCreate']:
                 raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationTableAutoCreate')
         elif isinstance(self, SchemaResource):
-            if 'destinationSchemaAutoCreate' in kwargs and not kwargs['destinationSchemaAutoCreate']:
+            if 'destinationSchemaAutoCreate' in config_parameters \
+                    and not config_parameters['destinationSchemaAutoCreate']:
                 raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationSchemaAutoCreate')
         elif isinstance(self, DBResource):
-            if 'destinationDatabaseAutoCreate' in kwargs and not kwargs['destinationDatabaseAutoCreate']:
+            if 'destinationDatabaseAutoCreate' in config_parameters \
+                    and not config_parameters['destinationDatabaseAutoCreate']:
                 raise Resource.AutoCreateRequiresConfigurationException(self, 'destinationDatabaseAutoCreate')
 
         logging.debug('Getting sql_text to create {self}.'.format(self=self))
         if sql_text is None:
-            sql_text = self.get_create_sql(**kwargs)
+            sql_text = self.get_create_sql(**config_parameters)
         logging.info('Creating {self} with: '.format(self=self))
         logging.info('{sql_text}'.format(sql_text=sql_text))
 
@@ -183,7 +186,7 @@ class DBResource(Resource):
             return False
         return self.name is not None
 
-    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
+    def get_statement_to_retrieve_ddl_create_statement_text(self):
         pass
         # TODO: probably best to create a v_generate_database_ddl
 
@@ -227,11 +230,11 @@ class SchemaResource(DBResource, ChildObject):
     def __str__(self):
         return super(SchemaResource, self).__str__() + '.' + str(self.get_schema())
 
-    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
-        return SchemaDDLHelper(**kwargs).get_schema_ddl_SQL(schema_name=self.get_schema())
+    def get_statement_to_retrieve_ddl_create_statement_text(self):
+        return SchemaDDLHelper(**config_parameters).get_schema_ddl_SQL(schema_name=self.get_schema())
 
-    def clone_structure_from(self, other, **kwargs):
-        ddl = other.get_create_sql(generate=True, **kwargs)
+    def clone_structure_from(self, other):
+        ddl = other.get_create_sql(generate=True, **config_parameters)
         if self.get_schema() != other.get_schema():
             ddl = DDLTransformer.get_ddl_for_different_relation(
                 ddl,
@@ -284,8 +287,8 @@ class TableResource(SchemaResource):
     def __str__(self):
         return super(TableResource, self).__str__() + '.' + str(self.get_table())
 
-    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
-        return TableDDLHelper(**kwargs).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
+    def get_statement_to_retrieve_ddl_create_statement_text(self):
+        return TableDDLHelper(**config_parameters).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
 
     def get_table(self):
         return self._table
@@ -313,8 +316,8 @@ class TableResource(SchemaResource):
 
         self.run_command_against_resource('copy_table', copy_parameters)
 
-    def clone_structure_from(self, other, **kwargs):
-        ddl = other.get_create_sql(generate=True, **kwargs)
+    def clone_structure_from(self, other):
+        ddl = other.get_create_sql(generate=True, **config_parameters)
         if self.get_schema() != other.get_schema() or self.get_table() != other.get_table():
             ddl = DDLTransformer.get_ddl_for_different_relation(
                 ddl,
@@ -322,7 +325,7 @@ class TableResource(SchemaResource):
                 new_schema_name=self.get_schema()
             )
         self.set_create_sql(ddl)
-        self.parent.clone_structure_from(other.parent, **kwargs)
+        self.parent.clone_structure_from(other.parent, **config_parameters)
 
     def drop(self):
         self.run_command_against_resource('drop_table', {})

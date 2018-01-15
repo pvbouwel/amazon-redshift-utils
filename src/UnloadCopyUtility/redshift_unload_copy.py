@@ -22,7 +22,7 @@ python redshift-unload-copy.py <config file> <region>
 import json
 import sys
 import logging
-from global_config import GlobalConfigParametersReader
+from global_config import GlobalConfigParametersReader, config_parameters
 from util.s3_utils import S3Helper, S3Details
 from util.resources import TableResourceFactory
 
@@ -67,6 +67,8 @@ class UnloadCopyTool:
                  config_file,
                  region_name,
                  global_config_values=GlobalConfigParametersReader().get_default_config_key_values()):
+        for key, value in global_config_values.items():
+            config_parameters[key] = value
         self.region = region_name
         self.s3_helper = S3Helper(self.region)
 
@@ -93,9 +95,9 @@ class UnloadCopyTool:
                 if global_config_values['destinationTableForceDropCreate']:
                     self.destination_table.drop()
             try:
-                self.destination_table.clone_structure_from(self.source_table, **global_config_values)
+                self.destination_table.clone_structure_from(self.source_table)
                 logging.info('Creating target table {tbl}'.format(tbl=str(self.destination_table)))
-                self.destination_table.create(**global_config_values)
+                self.destination_table.create()
             except Exception as e:
                 logging.fatal(str(e))
                 sys.exit(1)

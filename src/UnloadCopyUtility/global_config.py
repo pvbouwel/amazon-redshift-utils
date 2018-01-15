@@ -1,6 +1,10 @@
 import json
 import boto3
 
+global config_parameters
+if 'config_parameters' not in globals():
+    config_parameters = {}
+
 
 class ConfigParameter(object):
     def __init__(self, name, value):
