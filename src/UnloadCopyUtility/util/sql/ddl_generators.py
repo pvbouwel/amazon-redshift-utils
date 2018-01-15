@@ -1,4 +1,6 @@
 from util.sql.sql_text_helpers import SQLTextHelper
+from global_config import config_parameters
+
 import re
 import os
 import logging
@@ -37,9 +39,9 @@ class DDLHelper:
 
 
 class SchemaDDLHelper(DDLHelper):
-    def __init__(self, **kwargs):
+    def __init__(self):
         view_start = 'CREATE OR REPLACE VIEW admin.v_generate_schema_ddl AS '
-        DDLHelper.__init__(self, kwargs['locationGenerateSchemaDDLView'], view_start)
+        DDLHelper.__init__(self, config_parameters['locationGenerateSchemaDDLView'], view_start)
 
     # noinspection PyPep8Naming
     def get_schema_ddl_SQL(self, schema_name=None):
@@ -51,9 +53,9 @@ class SchemaDDLHelper(DDLHelper):
 
 
 class TableDDLHelper(DDLHelper):
-    def __init__(self, **kwargs):
+    def __init__(self):
         view_start = 'CREATE OR REPLACE VIEW admin.v_generate_tbl_ddl AS '
-        DDLHelper.__init__(self, kwargs['locationGenerateTableDDLView'], view_start)
+        DDLHelper.__init__(self, config_parameters['locationGenerateTableDDLView'], view_start)
 
     # noinspection PyPep8Naming
     def get_table_ddl_SQL(self, table_name=None, schema_name=None):

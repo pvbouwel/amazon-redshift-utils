@@ -1,6 +1,7 @@
 import json
 import boto3
 
+
 global config_parameters
 if 'config_parameters' not in globals():
     config_parameters = {}

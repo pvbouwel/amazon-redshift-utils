@@ -23,7 +23,7 @@ class Resource(object):
         logging.debug('get_create_sql for {self}'.format(self=self))
         if generate:
             ddl_dict = self.get_cluster().get_query_full_result_as_list_of_dict(
-                self.get_statement_to_retrieve_ddl_create_statement_text(**config_parameters)
+                self.get_statement_to_retrieve_ddl_create_statement_text()
             )
             ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(
                 '\n'.join([r['ddl'] for r in ddl_dict])
@@ -52,7 +52,7 @@ class Resource(object):
         if hasattr(self, 'parent'):
             logging.debug('Object {self} has a parent that needs to be present.'.format(self=self))
             if not self.parent.is_present():
-                self.parent.create(sql_text=sql_text, **config_parameters)
+                self.parent.create(sql_text=sql_text)
             else:
                 logging.debug('Parent of {self} is present.'.format(self=self))
         if isinstance(self, TableResource):
@@ -70,7 +70,7 @@ class Resource(object):
 
         logging.debug('Getting sql_text to create {self}.'.format(self=self))
         if sql_text is None:
-            sql_text = self.get_create_sql(**config_parameters)
+            sql_text = self.get_create_sql()
         logging.info('Creating {self} with: '.format(self=self))
         logging.info('{sql_text}'.format(sql_text=sql_text))
 
@@ -231,10 +231,10 @@ class SchemaResource(DBResource, ChildObject):
         return super(SchemaResource, self).__str__() + '.' + str(self.get_schema())
 
     def get_statement_to_retrieve_ddl_create_statement_text(self):
-        return SchemaDDLHelper(**config_parameters).get_schema_ddl_SQL(schema_name=self.get_schema())
+        return SchemaDDLHelper().get_schema_ddl_SQL(schema_name=self.get_schema())
 
     def clone_structure_from(self, other):
-        ddl = other.get_create_sql(generate=True, **config_parameters)
+        ddl = other.get_create_sql(generate=True)
         if self.get_schema() != other.get_schema():
             ddl = DDLTransformer.get_ddl_for_different_relation(
                 ddl,
@@ -288,7 +288,7 @@ class TableResource(SchemaResource):
         return super(TableResource, self).__str__() + '.' + str(self.get_table())
 
     def get_statement_to_retrieve_ddl_create_statement_text(self):
-        return TableDDLHelper(**config_parameters).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
+        return TableDDLHelper().get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
 
     def get_table(self):
         return self._table
@@ -317,7 +317,7 @@ class TableResource(SchemaResource):
         self.run_command_against_resource('copy_table', copy_parameters)
 
     def clone_structure_from(self, other):
-        ddl = other.get_create_sql(generate=True, **config_parameters)
+        ddl = other.get_create_sql(generate=True)
         if self.get_schema() != other.get_schema() or self.get_table() != other.get_table():
             ddl = DDLTransformer.get_ddl_for_different_relation(
                 ddl,
@@ -325,7 +325,7 @@ class TableResource(SchemaResource):
                 new_schema_name=self.get_schema()
             )
         self.set_create_sql(ddl)
-        self.parent.clone_structure_from(other.parent, **config_parameters)
+        self.parent.clone_structure_from(other.parent)
 
     def drop(self):
         self.run_command_against_resource('drop_table', {})
