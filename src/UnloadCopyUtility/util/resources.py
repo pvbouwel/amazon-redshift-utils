@@ -10,7 +10,7 @@ from util.sql.sql_text_helpers import SQLTextHelper, GET_SAFE_LOG_STRING
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
-class Resource:
+class Resource(object):
     def __init__(self):
         self.create_sql = None
 
