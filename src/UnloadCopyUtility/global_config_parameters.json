@@ -23,7 +23,7 @@
     "description": "If True and target table will be dropped if it exists and subsequently will be re-created from source definition.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
     "value": "False",
     "possibleValues": "True|False"
-  }
+  },
   "destinationSchemaAutoCreate": {
     "description": "If True and a target schema does not exist create target schema with same DDL as source schema.",
     "value": "False",

@@ -73,7 +73,6 @@ class Resource:
 
         self.get_cluster().execute_update(sql_text)
 
-    # TODO: implement drop for all resources
     @abstractmethod
     def drop(self):
         pass
@@ -131,6 +130,7 @@ class DBResource(Resource):
             get_<parameter_name>()
         """
         Resource.__init__(self)
+        self.commands = {}
         self._cluster = rs_cluster
         self.name = None
         self.owner = None
@@ -187,10 +187,28 @@ class DBResource(Resource):
         pass
         # TODO: probably best to create a v_generate_database_ddl
 
+    def drop(self):
+        pass
+
+    def run_command_against_resource(self, command, command_parameters=None):
+        command_parameters = command_parameters or dict()
+        command_parameters['cluster'] = self.get_cluster()
+        command_to_execute = self.commands[command]
+        if 'region' in command_parameters and command == 'copy_table' and command_parameters['region'] is not None:
+            command_to_execute += " REGION '{region}' "
+        update_sql_command = command_to_execute.format(**command_parameters)
+        logging.info('Executing {command} against {resource}:'.format(command=command, resource=self))
+        logging.info(GET_SAFE_LOG_STRING(update_sql_command))
+        self.get_cluster().execute_update(update_sql_command)
+
 
 class SchemaResource(DBResource, ChildObject):
+
+    drop_schema_stmt = """DROP SCHEMA {schema_name}"""
+
     def __init__(self, rs_cluster, schema):
         DBResource.__init__(self, rs_cluster)
+        self.commands['drop_schema'] = SchemaResource.drop_schema_stmt
         self.parent = DBResource(rs_cluster)
         self._schema = schema
         self.get_name_owner_acl_sql = GET_SCHEMA_NAME_OWNER_ACL
@@ -221,42 +239,42 @@ class SchemaResource(DBResource, ChildObject):
             )
         self.set_create_sql(ddl)
 
+    def run_command_against_resource(self, command, command_parameters=None):
+        command_parameters = command_parameters or dict()
+        command_parameters['schema_name'] = self.get_schema()
+        super(SchemaResource, self).run_command_against_resource(command, command_parameters)
+
+    def drop(self):
+        self.run_command_against_resource('drop_schema', {})
+
 
 class TableResource(SchemaResource):
-
-    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
-        return TableDDLHelper(**kwargs).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
-
-    commands = {}
-    unload_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
+    unload_table_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
                      to '{dataStagingPath}.' credentials 
                      '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                      manifest
                      encrypted
                      gzip
                      delimiter '^' addquotes escape allowoverwrite"""
-    commands['unload'] = unload_stmt
 
-    copy_stmt = """copy {schema_name}.{table_name}
+    copy_table_stmt = """copy {schema_name}.{table_name}
                    from '{dataStagingPath}.manifest' credentials 
                    '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                    manifest 
                    encrypted
                    gzip
                    delimiter '^' removequotes escape compupdate off"""
-    commands['copy'] = copy_stmt
 
-    def get_table(self):
-        return self._table
-
-    def set_table(self, table):
-        self._table = table
+    drop_table_stmt = """DROP TABLE {schema_name}.{table_name}"""
 
     def __init__(self, rs_cluster, schema, table):
         SchemaResource.__init__(self, rs_cluster, schema)
         self.parent = SchemaResource(rs_cluster, schema)
         self._table = table
         self.get_name_owner_acl_sql = GET_TABLE_NAME_OWNER_ACL
+        self.commands['unload_table'] = TableResource.unload_table_stmt
+        self.commands['copy_table'] = TableResource.copy_table_stmt
+        self.commands['drop_table'] = TableResource.drop_table_stmt
 
     def __eq__(self, other):
         return type(self) == type(other) and \
@@ -266,24 +284,26 @@ class TableResource(SchemaResource):
     def __str__(self):
         return super(TableResource, self).__str__() + '.' + str(self.get_table())
 
-    def run_command_against_table_resource(self, command, command_parameters):
-        command_parameters['schema_name'] = self.get_schema()
+    def get_statement_to_retrieve_ddl_create_statement_text(self, **kwargs):
+        return TableDDLHelper(**kwargs).get_table_ddl_SQL(table_name=self.get_table(), schema_name=self.get_schema())
+
+    def get_table(self):
+        return self._table
+
+    def set_table(self, table):
+        self._table = table
+
+    def run_command_against_resource(self, command, command_parameters=None):
+        command_parameters = command_parameters or dict()
         command_parameters['table_name'] = self.get_table()
-        command_parameters['cluster'] = self.get_cluster()
-        command_to_execute = self.commands[command]
-        if 'region' in command_parameters and command == 'copy' and command_parameters['region'] is not None:
-            command_to_execute += " REGION '{region}' "
-        update_sql_command = command_to_execute.format(**command_parameters)
-        logging.info('Executing {command} against {resource}:'.format(command=command, resource=self))
-        logging.info(GET_SAFE_LOG_STRING(update_sql_command))
-        self.get_cluster().execute_update(update_sql_command)
+        super(TableResource, self).run_command_against_resource(command, command_parameters)
 
     def unload_data(self, s3_details):
         unload_parameters = {'s3_access_credentials': s3_details.access_credentials,
                              'master_symmetric_key': s3_details.symmetric_key,
                              'dataStagingPath': s3_details.dataStagingPath,
                              'region': s3_details.dataStagingRegion}
-        self.run_command_against_table_resource('unload', unload_parameters)
+        self.run_command_against_resource('unload_table', unload_parameters)
 
     def copy_data(self, s3_details):
         copy_parameters = {'s3_access_credentials': s3_details.access_credentials,
@@ -291,7 +311,7 @@ class TableResource(SchemaResource):
                            'dataStagingPath': s3_details.dataStagingPath,
                            'region': s3_details.dataStagingRegion}
 
-        self.run_command_against_table_resource('copy', copy_parameters)
+        self.run_command_against_resource('copy_table', copy_parameters)
 
     def clone_structure_from(self, other, **kwargs):
         ddl = other.get_create_sql(generate=True, **kwargs)
@@ -303,6 +323,9 @@ class TableResource(SchemaResource):
             )
         self.set_create_sql(ddl)
         self.parent.clone_structure_from(other.parent, **kwargs)
+
+    def drop(self):
+        self.run_command_against_resource('drop_table', {})
 
 
 class TableResourceFactory:

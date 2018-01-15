@@ -8,8 +8,7 @@ import pytz
 import boto3
 from pg import connect
 
-options = """keepalives=1 keepalives_idle=200 keepalives_interval=200
-             keepalives_count=6"""
+options = "keepalives=1 keepalives_idle=200 keepalives_interval=200 keepalives_count=6"
 
 set_timeout_stmt = "set statement_timeout = 1200000"
 
@@ -43,6 +42,8 @@ class RedshiftCluster:
         self._user = None
         self._db = None
         self._port = None
+        self.database_connections = {}
+        self.database_timeouts = {}
         self.cluster_endpoint = cluster_endpoint
         self._user_auto_create = False
         self._user_creds_expiration = datetime.now(pytz.utc)
@@ -205,7 +206,8 @@ class RedshiftCluster:
     def get_cluster_identifier(self):
         return self.get_element_from_cluster_endpoint('cluster_identifier')
 
-    def _conn_to_rs(self, opt=options, timeout=set_timeout_stmt):
+    def _conn_to_rs(self, opt=options, timeout=set_timeout_stmt, database=None):
+        rs_conn = None
         if not hasattr(self, '_conn') or self._conn is None:
             rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
                 host=self.get_host(),
@@ -216,33 +218,51 @@ class RedshiftCluster:
                 opt=opt)
             logging.debug(GET_SAFE_LOG_STRING(rs_conn_string))
             rs_conn = connect(rs_conn_string)
-            self._conn = rs_conn
         if self._configured_timeout is not None and not self._configured_timeout == timeout:
-            self._conn.query(timeout)
-            self._configured_timeout = timeout
+            rs_conn.query(timeout)
+            self.database_timeouts[database][opt] = timeout
+        return rs_conn
 
-    def execute_update(self, command, opt=options, timeout=set_timeout_stmt):
-        self._conn_to_rs(opt=opt, timeout=timeout)
+    def get_conn_to_rs(self, opt=options, timeout=set_timeout_stmt, database=None):
+        database = database or self.get_db()
+        if database in self.database_connections:
+            if opt in self.database_connections[database]:
+                if not (opt in self.database_timeouts[database] and self.database_timeouts[database][opt] == timeout):
+                    logging.debug('Timeout is different from last configured timeout.')
+                    self.database_connections[database][opt].query(timeout)
+                return self.database_connections[database][opt]
+        else:
+            self.database_connections[database] = {}
+            self.database_timeouts[database] = {}
+        self.database_connections[database][opt] = self._conn_to_rs(opt=opt, timeout=timeout, database=database)
+        return self.database_connections[database][opt]
+
+    def execute_update(self, command, opt=options, timeout=set_timeout_stmt, database=None):
+        conn_rs = self.get_conn_to_rs(opt=opt, timeout=timeout, database=database)
         logging.debug('Executing update:' + GET_SAFE_LOG_STRING(command))
-        self._conn.query(command)
-        self._disconnect_from_rs()
+        conn_rs.query(command)
 
-    def get_query_full_result_as_list_of_dict(self, sql, opt=options, timeout=set_timeout_stmt):
+    def get_query_full_result_as_list_of_dict(self, sql, opt=options, timeout=set_timeout_stmt, database=None):
         """
         Inefficient way to store data but nice and easy for queries with small result sets.
         :return:
         """
-        self._conn_to_rs(opt=opt, timeout=timeout)
+        conn_rs = self.get_conn_to_rs(opt=opt, timeout=timeout, database=database)
         logging.debug('Executing query:' + GET_SAFE_LOG_STRING(sql))
-        result = self._conn.query(sql)
+        result = conn_rs.query(sql)
         dict_result = result.dictresult()
-        self._disconnect_from_rs()
         return dict_result
 
-    def _disconnect_from_rs(self):
-        self._conn.close()
-        self._conn = None
-
     def __del__(self):
-        if hasattr(self, '_conn') and self._conn is not None:
-            self._disconnect_from_rs()
+        for database in self.database_connections:
+            for option in self.database_connections[database]:
+                if self.database_connections[database][option] is not None:
+                    # noinspection PyBroadException
+                    try:
+                        self.database_connections[database][option].close()
+                    except:
+                        logging.warning('Could not correctly close self.database_connections{db}{opt}'.format(
+                            db=database,
+                            opt=option
+                        ))
+                    self.database_connections[database][option] = None

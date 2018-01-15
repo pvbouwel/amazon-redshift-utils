@@ -103,7 +103,6 @@ class TestRedshiftUnloadCopy(TestCase):
         util.kms_helper.KMSHelper.generate_base64_encoded_data_key = kms_mock
         util.redshift_cluster.RedshiftCluster._conn = MagicMock()
         util.redshift_cluster.RedshiftCluster.execute_update = execute_query_mock
-        util.redshift_cluster.RedshiftCluster._disconnect_from_rs = MagicMock()
 
         uct = redshift_unload_copy.UnloadCopyTool('example/config_test.json', 'us-east-1')
 
