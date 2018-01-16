@@ -9,6 +9,10 @@ DESCRIPTION="${DESCRIPTION}Make sure support for double quotes is available. "
 
 start_scenario "${DESCRIPTION}"
 
+start_step "Create schema admin: `CREATE SCHEMA IF NOT EXISTS admin;`"
+psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c "CREATE SCHEMA IF NOT EXISTS admin;" 2>>${STDERROR} | grep "CREATE SCHEMA" >>${STDOUTPUT} 2>>${STDERROR}
+r=$? && stop_step $r
+
 start_step "Install the AdminView admin.v_generate_tbl_ddl"
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -f "${HOME}/amazon-redshift-utils/src/AdminViews/v_generate_tbl_ddl.sql" 2>>${STDERROR} | grep "CREATE VIEW" >>${STDOUTPUT} 2>>${STDERROR}
 r=$? && stop_step $r
