@@ -30,6 +30,8 @@ psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${Tar
 r=$? && stop_step $r
 
 start_step "Check whether generated DDL is correct"
+echo 'Result for select ddl from admin.v_generate_tbl_ddl where tablename='"'"'po"i"nter'"':" >>${STDOUTPUT} 2>>${STDOUTPUT}
+psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c 'select ddl from admin.v_generate_tbl_ddl where tablename='"'"'po"i"nter'"';" >>${STDOUTPUT} 2>>${STDOUTPUT}
 psql -h ${SourceClusterEndpointAddress} -p ${SourceClusterEndpointPort} -U ${SourceClusterMasterUsername} ${SourceClusterDBName} -c 'select ddl from admin.v_generate_tbl_ddl where tablename='"'"'po"i"nter'"';" 2>>${STDERROR} | grep 'CREATE TABLE.*"po""i""nter"' >>${STDOUTPUT} 2>>${STDERROR}
 RESULT="$?"
 psql -h ${TargetClusterEndpointAddress} -p ${TargetClusterEndpointPort} -U ${TargetClusterMasterUsername} ${TargetClusterDBName} -c 'select ddl from admin.v_generate_tbl_ddl where tablename='"'"'po"i"nter'"';" 2>>${STDERROR} | grep 'ALTER TABLE.*"po""i""nter".*FOREIGN KEY.*"su""p""er".*"my""schema"."ta""r""get"."i""d".' >>${STDOUTPUT} 2>>${STDERROR}
