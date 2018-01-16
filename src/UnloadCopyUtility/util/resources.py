@@ -11,9 +11,15 @@ from global_config import config_parameters
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
 
 
+global resources
+if 'resources' not in globals():
+    resources = {}
+
+
 class Resource(object):
     def __init__(self):
         self.create_sql = None
+        self.created = False
 
     @abstractmethod
     def get_statement_to_retrieve_ddl_create_statement_text(self):
@@ -49,6 +55,8 @@ class Resource(object):
         :param sql_text:
         :return:
         """
+        if self.created:
+            return
         if hasattr(self, 'parent'):
             logging.debug('Object {self} has a parent that needs to be present.'.format(self=self))
             if not self.parent.is_present():
@@ -75,6 +83,7 @@ class Resource(object):
         logging.info('{sql_text}'.format(sql_text=sql_text))
 
         self.get_cluster().execute_update(sql_text)
+        self.created = True
 
     @abstractmethod
     def drop(self):
