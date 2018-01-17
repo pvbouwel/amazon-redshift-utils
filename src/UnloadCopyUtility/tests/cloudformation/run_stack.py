@@ -13,7 +13,7 @@ import paramiko
 
 
 cloudformation = boto3.client('cloudformation', region_name='eu-west-1')
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 class CloudFormationStack:
@@ -143,8 +143,8 @@ class StackRunner:
         logging.info('Tests have completed')
 
         if self.config['auto_delete']:
-            if self.stack.get_status() == 'NON-EXISTENT':
-                logging.info('Stack {sn} does not exist, cannot delete something that does not exist.'.format(
+            if self.stack.get_status() == 'NON-EXISTENT' or self.stack.get_status() == 'DELETE_IN_PROGRESS':
+                logging.info('Stack {sn} does not exist or being deleted, no action needed.'.format(
                     sn=self.stack.get_name()
                 ))
                 sys.exit(0)
@@ -168,7 +168,7 @@ class StackRunner:
             client.connect(ec2_instance_url, username='ec2-user', key_filename=self.config['ssh_key'])
             stdin, stdout, stderr = client.exec_command('tail ${HOME}/STATUS')
 
-            result_text = stdout.read()
+            result_text = stdout.read().decode('utf-8')
             logging.debug('Status ended with:' + str(result_text))
         finally:
             client.close()
