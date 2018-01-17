@@ -24,7 +24,7 @@ import sys
 import logging
 from global_config import GlobalConfigParametersReader, config_parameters
 from util.s3_utils import S3Helper, S3Details
-from util.resources import TableResourceFactory
+from util.resources import ResourceFactory
 
 region = None
 
@@ -75,11 +75,11 @@ class UnloadCopyTool:
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
 
-        self.source_table = TableResourceFactory.get_source_table_resource_from_config_helper(self.config_helper,
-                                                                                              self.region)
+        self.source_table = ResourceFactory.get_source_resource_from_config_helper(self.config_helper,
+                                                                                   self.region)
 
-        self.destination_table = TableResourceFactory.get_target_table_resource_from_config_helper(self.config_helper,
-                                                                                                   self.region)
+        self.destination_table = ResourceFactory.get_target_resource_from_config_helper(self.config_helper,
+                                                                                        self.region)
 
         if global_config_values['destinationTablePreTest'] \
                 or global_config_values['destinationTableAutoCreate'] \

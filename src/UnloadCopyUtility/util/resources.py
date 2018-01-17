@@ -261,7 +261,7 @@ class SchemaResource(DBResource, ChildObject):
 
 
 class TableResource(SchemaResource):
-    unload_table_stmt = """unload ('SELECT * FROM {schema_name}.{table_name}')
+    unload_table_stmt = """unload ('SELECT {columns} FROM {schema_name}.{table_name}')
                      to '{dataStagingPath}.' credentials 
                      '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                      manifest
@@ -269,7 +269,7 @@ class TableResource(SchemaResource):
                      gzip
                      delimiter '^' addquotes escape allowoverwrite"""
 
-    copy_table_stmt = """copy {schema_name}.{table_name}
+    copy_table_stmt = """copy {schema_name}.{table_name} {columns}
                    from '{dataStagingPath}.manifest' credentials 
                    '{s3_access_credentials};master_symmetric_key={master_symmetric_key}'
                    manifest 
@@ -287,6 +287,7 @@ class TableResource(SchemaResource):
         self.commands['unload_table'] = TableResource.unload_table_stmt
         self.commands['copy_table'] = TableResource.copy_table_stmt
         self.commands['drop_table'] = TableResource.drop_table_stmt
+        self.columns = None
 
     def __eq__(self, other):
         return type(self) == type(other) and \
@@ -314,14 +315,16 @@ class TableResource(SchemaResource):
         unload_parameters = {'s3_access_credentials': s3_details.access_credentials,
                              'master_symmetric_key': s3_details.symmetric_key,
                              'dataStagingPath': s3_details.dataStagingPath,
-                             'region': s3_details.dataStagingRegion}
+                             'region': s3_details.dataStagingRegion,
+                             'columns': self.columns or '*'}
         self.run_command_against_resource('unload_table', unload_parameters)
 
     def copy_data(self, s3_details):
         copy_parameters = {'s3_access_credentials': s3_details.access_credentials,
                            'master_symmetric_key': s3_details.symmetric_key,
                            'dataStagingPath': s3_details.dataStagingPath,
-                           'region': s3_details.dataStagingRegion}
+                           'region': s3_details.dataStagingRegion,
+                           'columns': self.columns or ''}
 
         self.run_command_against_resource('copy_table', copy_parameters)
 
@@ -339,20 +342,23 @@ class TableResource(SchemaResource):
     def drop(self):
         self.run_command_against_resource('drop_table', {})
 
+    def set_columns(self, columns):
+        self.columns = columns
 
-class TableResourceFactory:
+
+class ResourceFactory:
     def __init__(self):
         pass
 
     @staticmethod
-    def get_source_table_resource_from_config_helper(config_helper, kms_region=None):
+    def get_source_resource_from_config_helper(config_helper, kms_region=None):
         cluster_dict = config_helper.config['unloadSource']
-        return TableResourceFactory.get_table_resource_from_dict(cluster_dict, kms_region)
+        return ResourceFactory.get_resource_from_dict(cluster_dict, kms_region)
 
     @staticmethod
-    def get_target_table_resource_from_config_helper(config_helper, kms_region=None):
+    def get_target_resource_from_config_helper(config_helper, kms_region=None):
         cluster_dict = config_helper.config['copyTarget']
-        return TableResourceFactory.get_table_resource_from_dict(cluster_dict, kms_region)
+        return ResourceFactory.get_resource_from_dict(cluster_dict, kms_region)
 
     @staticmethod
     def get_cluster_from_cluster_dict(cluster_dict, kms_region):
@@ -378,7 +384,14 @@ class TableResourceFactory:
         return cluster
 
     @staticmethod
-    def get_table_resource_from_dict(cluster_dict, kms_region):
-        cluster = TableResourceFactory.get_cluster_from_cluster_dict(cluster_dict, kms_region)
-        table_resource = TableResource(cluster, cluster_dict['schemaName'], cluster_dict['tableName'])
-        return table_resource
+    def get_resource_from_dict(cluster_dict, kms_region):
+        cluster = ResourceFactory.get_cluster_from_cluster_dict(cluster_dict, kms_region)
+        if 'schemaName' not in cluster_dict:
+            return DBResource(cluster)
+        elif 'tableName' not in cluster_dict:
+            return SchemaResource(cluster)
+        else:
+            table_resource = TableResource(cluster, cluster_dict['schemaName'], cluster_dict['tableName'])
+            if 'columns' in cluster_dict and cluster_dict['columns'].strip():
+                table_resource.set_columns(cluster_dict['columns'].strip())
+            return table_resource
