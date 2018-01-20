@@ -2,6 +2,7 @@ from abc import abstractmethod
 import uuid
 import sys
 import time
+import copy
 import logging
 from global_config import config_parameters
 from util.resources import Resource
@@ -51,24 +52,55 @@ class TaskManager(object):
     def remove_fulfilled_dependencies(self, task_id):
         for dependency in self.tasks[task_id].dependencies.copy():
             if dependency in self.completed_successfully_tasks.keys():
+                logging.debug('Dependency {d} for task {t} succeeded earlier, clearing dependency'.format(
+                    d=dependency,
+                    t=task_id
+                ))
                 self.tasks[task_id].dependencies.remove(dependency)
             elif dependency in self.completed_failed_tasks.keys():
+                logging.debug('Dependency {d} for task {t} failed earlier, failing {t} task as well.'.format(
+                    d=dependency,
+                    t=task_id
+                ))
                 self.tasks[task_id].has_failed = True
                 self.tasks[task_id].dependencies.remove(dependency)
 
     def mark_task_as_succeeded(self, task):
+        logging.info('Task succeeded {t}'.format(t=task))
         self.completed_successfully_tasks[task.task_id] = task
+        logging.debug('All succeeded tasks: {tl}'.format(tl=self.completed_successfully_tasks))
 
     def mark_task_as_failed(self, task):
+        logging.info('Task failed {t}'.format(t=task))
         self.completed_failed_tasks[task.task_id] = task
+        logging.debug('All failed tasks: {tl}'.format(tl=self.completed_failed_tasks))
 
 
 class DependencyList(list):
+    def append(self, value):
+        return super(DependencyList, self).append(DependencyList.get_safe_value(value))
+
+    def count(self, value):
+        return super(DependencyList, self).count(DependencyList.get_safe_value(value))
+
+    def index(self, value, start=0, stop=...):
+        return super(DependencyList, self).index(DependencyList.get_safe_value(value), start, stop)
+
+    def remove(self, value):
+        return super(DependencyList, self).remove(DependencyList.get_safe_value(value))
+
+    def copy(self):
+        return copy.deepcopy(self)
+
     def __setitem__(self, key, value):
+        return super(DependencyList, self).__setitem__(key, DependencyList.get_safe_value(value))
+
+    @staticmethod
+    def get_safe_value(value):
         if isinstance(value, Task):
             value = value.task_id
         if isinstance(value, uuid.UUID):
-            return super(DependencyList, self).__setitem__(key, value)
+            return value
         raise ValueError('Value {v} cannot be converted to valid dependency (task_id)'.format(v=value))
 
 
@@ -145,7 +177,7 @@ class UnloadDataToS3Task(Task):
                                                  dependencies=dependencies)
 
     def execute(self):
-        logging.info("Exporting from Source")
+        logging.info("Exporting from Source ({t})".format(t=self))
         self.source_resource.unload_data(self.s3_details)
 
 
@@ -157,7 +189,7 @@ class CopyDataFromS3Task(Task):
                                                  dependencies=dependencies)
 
     def execute(self):
-        logging.info("Importing to Target")
+        logging.info("Importing to Target ({t})".format(t=self))
         self.target_resource.copy_data(self.s3_details)
 
 
