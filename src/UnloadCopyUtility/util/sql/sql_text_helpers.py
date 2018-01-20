@@ -165,3 +165,18 @@ class SQLTextHelper:
         if '"' in identifier_string:
             raise ValueError('quote_unindent cannot have a value with double quotes if not surrounded by double quotes')
         return identifier_string
+
+    @staticmethod
+    def get_first_double_quoted_identifier(string):
+        if '"' not in string:
+            raise ValueError('No double quote in {s} so cannot get first double quoted identifier.'.format(s=string))
+        start_pos = string.find('"')
+        pos = start_pos + 1
+        while pos < len(string):
+            if string[pos] == '"' and pos + 1 < len(string) and string[pos+1] == '"':
+                pos += 2
+            elif string[pos] == '"' and (pos + 1 == len(string) or string[pos+1] != '"'):
+                break
+            else:
+                pos += 1
+        return string[start_pos:pos + 1]

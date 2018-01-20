@@ -38,6 +38,21 @@ class DDLHelper:
             self.filter_sql = ''
 
 
+class DatabaseDDLHelper(DDLHelper):
+    def __init__(self):
+        view_start = 'CREATE OR REPLACE VIEW admin.v_generate_database_ddl AS '
+        DDLHelper.__init__(self, config_parameters['locationGenerateDatabaseDDLView'], view_start)
+
+    # noinspection PyPep8Naming
+    def get_database_ddl_SQL(self, database_name=None):
+        filters = {}
+        if database_name is not None:
+            # noinspection SpellCheckingInspection
+            filters['datname'] = database_name
+        self.add_filters(filters)
+        return self.get_sql()
+
+
 class SchemaDDLHelper(DDLHelper):
     def __init__(self):
         view_start = 'CREATE OR REPLACE VIEW admin.v_generate_schema_ddl AS '
@@ -113,6 +128,22 @@ class DDLTransformer:
                 regex_table = r'(?P<table_name>".*")'
             regex_string += r'\.' + regex_table
         return regex_string
+
+    @staticmethod
+    def get_database_name_out_of_ddl(ddl):
+        clean_ddl = SQLTextHelper.get_sql_without_commands_newlines_and_whitespace(ddl)
+        if clean_ddl.upper().startswith('CREATE DATABASE "'):
+            return SQLTextHelper.get_first_double_quoted_identifier(clean_ddl)
+        elif clean_ddl.upper().startswith('CREATE DATABASE '):
+            database_name = clean_ddl.split(' ')[2]
+        else:
+            raise DDLTransformer.UnsupportedDDLForTransformationException(clean_ddl)
+        return database_name
+
+    @staticmethod
+    def get_ddl_for_different_database(ddl, new_database_name=None):
+        old_database_name = DDLTransformer.get_database_name_out_of_ddl(ddl)
+        return ddl.replace(old_database_name, new_database_name)
 
     def get_ddl_for_different_relation_where_relation_just_before_round_bracket(
             self,

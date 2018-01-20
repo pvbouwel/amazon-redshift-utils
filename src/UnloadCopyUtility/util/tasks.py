@@ -35,7 +35,8 @@ class TaskManager(object):
                     try:
                         task.execute()
                         self.mark_task_as_succeeded(task)
-                    except:
+                    except Exception as e:
+                        logging.warning(e)
                         self.mark_task_as_failed(task)
                         if config_parameters['failOnError']:
                             logging.fatal('Task {t} fails and failOnError is True.'.format(t=task))
@@ -83,7 +84,7 @@ class DependencyList(list):
     def count(self, value):
         return super(DependencyList, self).count(DependencyList.get_safe_value(value))
 
-    def index(self, value, start=0, stop=...):
+    def index(self, value, start=0, stop=None):
         return super(DependencyList, self).index(DependencyList.get_safe_value(value), start, stop)
 
     def remove(self, value):

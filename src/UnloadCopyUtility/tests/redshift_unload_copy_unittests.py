@@ -17,7 +17,8 @@ Unittests can only be ran in python3 due to dependencies
 """
 from unittest import TestCase
 from unittest.mock import MagicMock
-from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING
+from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING, SQLTextHelper
+from util.sql.ddl_generators import DDLTransformer
 from util.redshift_cluster import RedshiftCluster
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL
 from util.resources import DBResource
@@ -55,6 +56,25 @@ class TestRedshiftUnloadCopy(TestCase):
         example_url = 'my-cluSter.a1bcdefghijk.eU-west-1.redshift.amazonaws.com'
         rs_cluster = RedshiftCluster(example_url)
         self.assertEqual('my-cluster', rs_cluster.get_cluster_identifier())
+
+    def test_extract_first_double_quoted_identifier_from_string(self):
+        test_string = 'CREATE DATABASE "test"'
+        self.assertEquals('"test"', SQLTextHelper.get_first_double_quoted_identifier(test_string))
+
+    def test_extract_first_double_quoted_identifier_from_string_with_escaped_double_quotes(self):
+        test_string = 'CREATE DATABASE "te""st"'
+        self.assertEquals('"te""st"', SQLTextHelper.get_first_double_quoted_identifier(test_string))
+
+    def test_extract_first_double_quoted_identifier_from_string_with_escaped_double_quotes_at_end(self):
+        test_string = 'CREATE DATABASE "test"""'
+        self.assertEquals('"test"""', SQLTextHelper.get_first_double_quoted_identifier(test_string))
+
+    def test_get_ddl_for_different_database_name(self):
+        ddl_string = '  CREATE DATABASE {db}   WITH CONNECTION LIMIT UNLIMITED;'
+        test_string = ddl_string.format(db='"my""data"')
+        new_db_name = '"ab"""'
+        expected_string = ddl_string.format(db=new_db_name)
+        self.assertEquals(expected_string, DDLTransformer.get_ddl_for_different_database(test_string, new_db_name))
 
     def test_temporary_credential_expiration_predicate(self):
         example_url = 'my-cluSter.a1bcdefghijk.eU-west-1.redshift.amazonaws.com'

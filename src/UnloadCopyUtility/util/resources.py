@@ -5,7 +5,7 @@ import logging
 from util.child_object import ChildObject
 from util.kms_helper import KMSHelper
 from util.redshift_cluster import RedshiftCluster
-from util.sql.ddl_generators import SchemaDDLHelper, TableDDLHelper, DDLTransformer
+from util.sql.ddl_generators import DatabaseDDLHelper, SchemaDDLHelper, TableDDLHelper, DDLTransformer
 from util.sql.sql_text_helpers import SQLTextHelper, GET_SAFE_LOG_STRING
 from global_config import config_parameters
 from util.sql_queries import GET_DATABASE_NAME_OWNER_ACL, GET_SCHEMA_NAME_OWNER_ACL, GET_TABLE_NAME_OWNER_ACL
@@ -129,8 +129,13 @@ class Resource(object):
 
 class DBResource(Resource):
     def clone_structure_from(self, other):
-        # TODO: Implement
-        pass
+        ddl = other.get_create_sql(generate=True)
+        if self.get_db() != other.get_db():
+            ddl = DDLTransformer.get_ddl_for_different_database(
+                ddl,
+                new_database_name=self.get_db()
+            )
+        self.set_create_sql(ddl)
 
     def __init__(self, rs_cluster):
         """
@@ -196,8 +201,7 @@ class DBResource(Resource):
         return self.name is not None
 
     def get_statement_to_retrieve_ddl_create_statement_text(self):
-        pass
-        # TODO: probably best to create a v_generate_database_ddl
+        return DatabaseDDLHelper().get_database_ddl_SQL(database_name=self.get_db())
 
     def drop(self):
         pass
@@ -389,7 +393,7 @@ class ResourceFactory:
         if 'schemaName' not in cluster_dict:
             return DBResource(cluster)
         elif 'tableName' not in cluster_dict:
-            return SchemaResource(cluster)
+            return SchemaResource(cluster, cluster_dict['schemaName'])
         else:
             table_resource = TableResource(cluster, cluster_dict['schemaName'], cluster_dict['tableName'])
             if 'columns' in cluster_dict and cluster_dict['columns'].strip():

@@ -30,7 +30,7 @@
     "possibleValues": "True|False"
   },
   "destinationDatabaseAutoCreate": {
-    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
+    "description": "If True and database where target table will be placed does not exist then create target database with same DDL as source database.  This is used to copy databases.",
     "value": "False",
     "possibleValues": "True|False"
   },
@@ -47,6 +47,11 @@
   "locationGenerateSchemaDDLView": {
     "description": "Path to v_generate_schema_ddl.sql.  The default assumes that UnloadCopyUtility is part of a fully cloned amazon-redshift-utils (https://github.com/awslabs/amazon-redshift-utils.git)",
     "value": "./../AdminViews/v_generate_schema_ddl.sql",
+    "possibleValues": "/any/valid/system/path"
+  },
+  "locationGenerateDatabaseDDLView": {
+    "description": "Path to v_generate_database_ddl.sql.  The default assumes that UnloadCopyUtility is part of a fully cloned amazon-redshift-utils (https://github.com/awslabs/amazon-redshift-utils.git)",
+    "value": "./../AdminViews/v_generate_database_ddl.sql",
     "possibleValues": "/any/valid/system/path"
   },
   "failOnError": {
