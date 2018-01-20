@@ -25,7 +25,7 @@ import logging
 from global_config import GlobalConfigParametersReader, config_parameters
 from util.s3_utils import S3Helper, S3Details
 from util.resources import ResourceFactory
-from util.tasks import TaskManager, FailIfResourceDoesNotExistsTask, CreateIfTargetDoesNotExistTask, \
+from util.tasks import TaskManager, DependencyList, FailIfResourceDoesNotExistsTask, CreateIfTargetDoesNotExistTask, \
     FailIfResourceClusterDoesNotExistsTask, UnloadDataToS3Task, CopyDataFromS3Task, CleanupS3StagingAreaTask
 
 
@@ -84,7 +84,7 @@ class UnloadCopyTool:
         self.destination = ResourceFactory.get_target_resource_from_config_helper(self.config_helper,
                                                                                   self.region)
         tm = TaskManager()
-        pre_tests = []
+        pre_tests = DependencyList()
         if global_config_values['connectionPreTest']:
             if not global_config_values['destinationTablePreTest']:
                 connection_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=self.destination)

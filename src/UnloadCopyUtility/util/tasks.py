@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import uuid
 import sys
+import time
 import logging
 from global_config import config_parameters
 from util.resources import Resource
@@ -24,7 +25,8 @@ class TaskManager(object):
 
     def run(self):
         while len(self.tasks.keys()) > 0:
-            for task_id in self.tasks.keys():
+            tasks_clone = self.tasks.copy()
+            for task_id in tasks_clone.keys():
                 self.remove_fulfilled_dependencies(task_id)
                 if len(self.tasks[task_id].dependencies) == 0:
                     task = self.tasks.pop(task_id)
@@ -37,6 +39,14 @@ class TaskManager(object):
                         if config_parameters['failOnError']:
                             logging.fatal('Task {t} fails and failOnError is True.'.format(t=task))
                             sys.exit(2)
+                else:
+                    logging.debug('Task {t} has {n} unmet dependencies.'.format(
+                        t=self.tasks[task_id],
+                        n=len(self.tasks[task_id].dependencies)
+                    ))
+                    for dependency in self.tasks[task_id].dependencies:
+                        logging.debug('\t{d}'.format(d=dependency))
+            time.sleep(1)
 
     def remove_fulfilled_dependencies(self, task_id):
         for dependency in self.tasks[task_id].dependencies.copy():
@@ -53,12 +63,21 @@ class TaskManager(object):
         self.completed_failed_tasks[task.task_id] = task
 
 
+class DependencyList(list):
+    def __setitem__(self, key, value):
+        if isinstance(value, Task):
+            value = value.task_id
+        if isinstance(value, uuid.UUID):
+            return super(DependencyList, self).__setitem__(key, value)
+        raise ValueError('Value {v} cannot be converted to valid dependency (task_id)'.format(v=value))
+
+
 class Task:
     def __init__(self, source_resource=None, target_resource=None, s3_details=None, dependencies=None):
         self.source_resource = source_resource
         self.target_resource = target_resource
         self.s3_details = s3_details
-        self.dependencies = dependencies or []
+        self.dependencies = dependencies or DependencyList()
         self.task_id = uuid.uuid4()
         self.has_failed = False
 
