@@ -11,7 +11,10 @@ import os
 
 class RedshiftUnloadCopyClusterTests(TestCase):
     def setUp(self):
-        self.default_config = GlobalConfigParametersReader().get_default_config_key_values()
+        global_config_reader = GlobalConfigParametersReader()
+        arguments = ['app-name', 'config-file', 'eu-west-1', '--destination-schema-auto-create',
+                     '--destination-table-auto-create']
+        global_config_reader.get_config_key_values_updated_with_cli_args(arguments)
         self.configure_test_cluster()
         self.create_test_table()
 
@@ -36,6 +39,7 @@ class RedshiftUnloadCopyClusterTests(TestCase):
         self.test_table.drop()
         self.test_schema.drop()
 
+    # noinspection PyUnusedLocal
     @staticmethod
     def get_random_identifier(*args, **kwargs):
         return ''.join([choice(string.ascii_lowercase) for i in range(0, 20)])
@@ -51,8 +55,10 @@ class RedshiftUnloadCopyClusterTests(TestCase):
 
     def test_retrieve_tbl_ddl(self):
         table = TableResource(self.cluster, self.test_schema_name, self.test_table_name)
+        ddl_text = None
         if table.is_present():
-            ddl_text = table.get_create_sql(generate=True, **self.default_config)
-        start = r'CREATE TABLE IF NOT EXISTS "{s}"."{t}"'.format( s=self.test_schema_name, t=self.test_table_name)
+            ddl_text = table.get_create_sql(generate=True)
+        start = r'CREATE TABLE IF NOT EXISTS ["]*{s}["]*.["]*{t}["]*'.format(s=self.test_schema_name,
+                                                                             t=self.test_table_name)
         self.assertRegexpMatches(ddl_text, start, 'Create table is not present')
-        self.assertRegexpMatches(ddl_text, r'"id" INTEGER', 'Column definition is not present')
+        self.assertRegexpMatches(ddl_text, r'["]*id["]* INTEGER', 'Column definition is not present')

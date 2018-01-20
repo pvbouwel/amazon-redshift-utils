@@ -219,11 +219,17 @@ class GlobalConfigParametersReader:
         return default_config_parameters
 
     def get_default_config_key_values(self):
-        return GlobalConfigParametersReader.get_key_value_dict(self.get_default_config_parameters())
+        global config_parameters
+        for key, value in GlobalConfigParametersReader.get_key_value_dict(self.get_default_config_parameters()).items():
+            config_parameters[key] = value
+        return config_parameters
 
     def get_config_key_values_updated_with_cli_args(self, argv):
         self.get_default_config_parameter_updated_with_cli_args(argv)
-        return GlobalConfigParametersReader.get_key_value_dict(self.config_parameters)
+        global config_parameters
+        for key, value in GlobalConfigParametersReader.get_key_value_dict(self.config_parameters).items():
+            config_parameters[key] = value
+        return config_parameters
 
     def check_unprocessed_parameters(self):
         counter = 1
