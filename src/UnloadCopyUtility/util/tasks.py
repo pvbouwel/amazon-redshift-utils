@@ -15,10 +15,28 @@ class TaskManager(object):
         self.completed_successfully_tasks = {}
         self.completed_failed_tasks = {}
 
-    def add_task(self, task):
+    def add_task(self, task, dependency_of=None, dependencies=None):
         if task.task_id in self.tasks.keys():
             raise TaskManager.DuplicateTaskException()
         self.tasks[task.task_id] = task
+        if dependency_of is not None:
+            if isinstance(dependency_of, list):
+                for downstream_task in dependency_of:
+                    self.add_dependency_to_task(task=downstream_task, dependency=task)
+            else:
+                self.add_dependency_to_task(task=dependency_of, dependency=task)
+        if dependencies is not None:
+            if isinstance(dependencies, list):
+                for dependency in dependencies:
+                    self.add_dependency_to_task(task=task, dependency=dependency)
+            else:
+                self.add_dependency_to_task(task=task, dependency=dependencies)
+
+    def add_dependency_to_task(self, task, dependency):
+        self.get_task(task).dependencies.append(DependencyList.get_safe_value(dependency))
+
+    def get_task(self, task_or_task_id):
+        return self.tasks[DependencyList.get_safe_value(task_or_task_id)]
 
     class DuplicateTaskException(Exception):
         def __init__(self):
@@ -149,6 +167,14 @@ class FailIfResourceClusterDoesNotExistsTask(Task):
         res = self.source_resource.get_cluster().get_query_full_result_as_list_of_dict('select 1 as result')
         if not res[0]['result'] == 1:
             raise Resource.NotFound('Cluster of resource {r} could not be queried.'.format(r=self.source_resource))
+
+
+class NoOperationTask(Task):
+    def __init__(self):
+        super(NoOperationTask, self).__init__()
+
+    def execute(self):
+        return
 
 
 class CreateIfTargetDoesNotExistTask(Task):
