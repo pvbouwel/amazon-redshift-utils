@@ -125,7 +125,7 @@ class UnloadCopyTool:
         copy_data = CopyDataFromS3Task(self.destination, self.s3_details)
         task_manager.add_task(copy_data, dependencies=unload_data)
 
-        s3_cleanup = CleanupS3StagingAreaTask(self.s3_details, dependencies=[copy_data])
+        s3_cleanup = CleanupS3StagingAreaTask(self.s3_details)
         task_manager.add_task(s3_cleanup, dependencies=copy_data)
 
         task_manager.run()

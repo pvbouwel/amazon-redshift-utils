@@ -124,11 +124,11 @@ class DependencyList(list):
 
 
 class Task(object):
-    def __init__(self, source_resource=None, target_resource=None, s3_details=None, dependencies=None):
+    def __init__(self, source_resource=None, target_resource=None, s3_details=None):
         self.source_resource = source_resource
         self.target_resource = target_resource
         self.s3_details = s3_details
-        self.dependencies = dependencies or DependencyList()
+        self.dependencies = DependencyList()
         self.task_id = uuid.uuid4()
         self.has_failed = False
 
@@ -145,11 +145,10 @@ class Task(object):
 
 
 class FailIfResourceDoesNotExistsTask(Task):
-    def __init__(self, resource=None, dependencies=None):
+    def __init__(self, resource=None):
         super(FailIfResourceDoesNotExistsTask, self).__init__(source_resource=resource,
                                                               target_resource=None,
-                                                              s3_details=None,
-                                                              dependencies=dependencies)
+                                                              s3_details=None)
 
     def execute(self):
         if not self.source_resource.is_present():
@@ -157,11 +156,10 @@ class FailIfResourceDoesNotExistsTask(Task):
 
 
 class FailIfResourceClusterDoesNotExistsTask(Task):
-    def __init__(self, resource=None, dependencies=None):
+    def __init__(self, resource=None):
         super(FailIfResourceClusterDoesNotExistsTask, self).__init__(source_resource=resource,
                                                                      target_resource=None,
-                                                                     s3_details=None,
-                                                                     dependencies=dependencies)
+                                                                     s3_details=None)
 
     def execute(self):
         res = self.source_resource.get_cluster().get_query_full_result_as_list_of_dict('select 1 as result')
@@ -178,11 +176,10 @@ class NoOperationTask(Task):
 
 
 class CreateIfTargetDoesNotExistTask(Task):
-    def __init__(self, source_resource=None, target_resource=None, dependencies=None):
+    def __init__(self, source_resource=None, target_resource=None):
         super(CreateIfTargetDoesNotExistTask, self).__init__(source_resource=source_resource,
                                                              target_resource=target_resource,
-                                                             s3_details=None,
-                                                             dependencies=dependencies)
+                                                             s3_details=None)
 
     def execute(self):
         if config_parameters['destinationTableForceDropCreate']:
@@ -196,11 +193,10 @@ class CreateIfTargetDoesNotExistTask(Task):
 
 
 class UnloadDataToS3Task(Task):
-    def __init__(self, cluster_resource, s3_details, dependencies=None):
+    def __init__(self, cluster_resource, s3_details):
         super(UnloadDataToS3Task, self).__init__(source_resource=cluster_resource,
                                                  target_resource=None,
-                                                 s3_details=s3_details,
-                                                 dependencies=dependencies)
+                                                 s3_details=s3_details)
 
     def execute(self):
         logging.info("Exporting from Source ({t})".format(t=self))
@@ -208,11 +204,10 @@ class UnloadDataToS3Task(Task):
 
 
 class CopyDataFromS3Task(Task):
-    def __init__(self, cluster_resource, s3_details, dependencies=None):
+    def __init__(self, cluster_resource, s3_details):
         super(CopyDataFromS3Task, self).__init__(source_resource=None,
                                                  target_resource=cluster_resource,
-                                                 s3_details=s3_details,
-                                                 dependencies=dependencies)
+                                                 s3_details=s3_details)
 
     def execute(self):
         logging.info("Importing to Target ({t})".format(t=self))
@@ -220,11 +215,10 @@ class CopyDataFromS3Task(Task):
 
 
 class CleanupS3StagingAreaTask(Task):
-    def __init__(self, s3_details, dependencies=None):
+    def __init__(self, s3_details):
         super(CleanupS3StagingAreaTask, self).__init__(source_resource=None,
                                                        target_resource=None,
-                                                       s3_details=s3_details,
-                                                       dependencies=dependencies)
+                                                       s3_details=s3_details)
 
     def execute(self):
         s3_helper = S3Helper(config_parameters['region'])
