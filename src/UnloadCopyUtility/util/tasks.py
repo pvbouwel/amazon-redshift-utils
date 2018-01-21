@@ -105,7 +105,7 @@ class DependencyList(list):
         raise ValueError('Value {v} cannot be converted to valid dependency (task_id)'.format(v=value))
 
 
-class Task:
+class Task(object):
     def __init__(self, source_resource=None, target_resource=None, s3_details=None, dependencies=None):
         self.source_resource = source_resource
         self.target_resource = target_resource
