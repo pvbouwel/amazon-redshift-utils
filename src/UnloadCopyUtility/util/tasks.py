@@ -167,7 +167,6 @@ class CreateIfTargetDoesNotExistTask(Task):
             self.target_resource.clone_structure_from(self.source_resource)
             logging.info('Creating target {tbl}'.format(tbl=str(self.target_resource)))
             self.target_resource.create()
-            raise Resource.NotFound('{r} was not found'.format(r=self))
 
 
 class UnloadDataToS3Task(Task):
