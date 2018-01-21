@@ -79,56 +79,66 @@ class UnloadCopyTool:
         # load the configuration
         self.config_helper = ConfigHelper(config_file, self.s3_helper)
 
-        self.source = ResourceFactory.get_source_resource_from_config_helper(self.config_helper, self.region)
+        source = ResourceFactory.get_source_resource_from_config_helper(self.config_helper, self.region)
 
-        self.destination = ResourceFactory.get_target_resource_from_config_helper(self.config_helper, self.region)
+        destination = ResourceFactory.get_target_resource_from_config_helper(self.config_helper, self.region)
 
-        task_manager = TaskManager()
-        barrier_after_all_cluster_pre_tests = NoOperationTask()
-        task_manager.add_task(barrier_after_all_cluster_pre_tests)
-        barrier_after_all_resource_pre_tests = NoOperationTask()
-        task_manager.add_task(barrier_after_all_resource_pre_tests)
+        self.task_manager = TaskManager()
+        self.barrier_after_all_cluster_pre_tests = NoOperationTask()
+        self.task_manager.add_task(self.barrier_after_all_cluster_pre_tests)
+        self.barrier_after_all_resource_pre_tests = NoOperationTask()
+        self.task_manager.add_task(self.barrier_after_all_resource_pre_tests)
+
+        # TODO: Check whether both resources oare of type table
+        self.add_table_migration(source, destination, global_config_values)
+
+        self.task_manager.run()
+
+    def add_table_migration(self, source, destination, global_config_values):
         if global_config_values['connectionPreTest']:
             if not global_config_values['destinationTablePreTest']:
-                destination_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=self.destination)
-                task_manager.add_task(destination_cluster_pre_test, dependency_of=barrier_after_all_cluster_pre_tests)
+                destination_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=destination)
+                self.task_manager.add_task(destination_cluster_pre_test,
+                                           dependency_of=self.barrier_after_all_cluster_pre_tests)
             if not global_config_values['sourceTablePreTest']:
-                source_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=self.source)
-                task_manager.add_task(source_cluster_pre_test, dependency_of=barrier_after_all_cluster_pre_tests)
+                source_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=source)
+                self.task_manager.add_task(source_cluster_pre_test,
+                                           dependency_of=self.barrier_after_all_cluster_pre_tests)
         if global_config_values['destinationTablePreTest']:
             if global_config_values['destinationTableAutoCreate']:
-                destination_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=self.destination)
-                task_manager.add_task(destination_cluster_pre_test, dependency_of=barrier_after_all_cluster_pre_tests)
+                destination_cluster_pre_test = FailIfResourceClusterDoesNotExistsTask(resource=destination)
+                self.task_manager.add_task(destination_cluster_pre_test,
+                                           dependency_of=self.barrier_after_all_cluster_pre_tests)
             else:
-                destination_table_pre_test = FailIfResourceDoesNotExistsTask(self.destination)
-                task_manager.add_task(destination_table_pre_test, dependency_of=barrier_after_all_resource_pre_tests,
-                                      dependencies=barrier_after_all_cluster_pre_tests)
+                destination_table_pre_test = FailIfResourceDoesNotExistsTask(destination)
+                self.task_manager.add_task(destination_table_pre_test,
+                                           dependency_of=self.barrier_after_all_resource_pre_tests,
+                                           dependencies=self.barrier_after_all_cluster_pre_tests)
 
         if global_config_values['sourceTablePreTest']:
-            source_table_pre_test = FailIfResourceDoesNotExistsTask(self.source)
-            task_manager.add_task(source_table_pre_test, dependency_of=barrier_after_all_resource_pre_tests,
-                                  dependencies=barrier_after_all_cluster_pre_tests)
+            source_table_pre_test = FailIfResourceDoesNotExistsTask(source)
+            self.task_manager.add_task(source_table_pre_test,
+                                       dependency_of=self.barrier_after_all_resource_pre_tests,
+                                       dependencies=self.barrier_after_all_cluster_pre_tests)
 
         if global_config_values['destinationTableAutoCreate']:
             create_target = CreateIfTargetDoesNotExistTask(
-                source_resource=self.source,
-                target_resource=self.destination
+                source_resource=source,
+                target_resource=destination
             )
-            task_manager.add_task(create_target, dependency_of=barrier_after_all_resource_pre_tests,
-                                  dependencies=barrier_after_all_cluster_pre_tests)
+            self.task_manager.add_task(create_target,
+                                       dependency_of=self.barrier_after_all_resource_pre_tests,
+                                       dependencies=self.barrier_after_all_cluster_pre_tests)
 
-        self.s3_details = S3Details(self.config_helper, self.source, encryptionKeyID=encryptionKeyID)
+        s3_details = S3Details(self.config_helper, source, encryptionKeyID=encryptionKeyID)
+        unload_data = UnloadDataToS3Task(source, s3_details)
+        self.task_manager.add_task(unload_data, dependencies=self.barrier_after_all_resource_pre_tests)
 
-        unload_data = UnloadDataToS3Task(self.source, self.s3_details)
-        task_manager.add_task(unload_data, dependencies=barrier_after_all_resource_pre_tests)
+        copy_data = CopyDataFromS3Task(destination, s3_details)
+        self.task_manager.add_task(copy_data, dependencies=unload_data)
 
-        copy_data = CopyDataFromS3Task(self.destination, self.s3_details)
-        task_manager.add_task(copy_data, dependencies=unload_data)
-
-        s3_cleanup = CleanupS3StagingAreaTask(self.s3_details)
-        task_manager.add_task(s3_cleanup, dependencies=copy_data)
-
-        task_manager.run()
+        s3_cleanup = CleanupS3StagingAreaTask(s3_details)
+        self.task_manager.add_task(s3_cleanup, dependencies=copy_data)
 
 
 def set_log_level(log_level_string):
