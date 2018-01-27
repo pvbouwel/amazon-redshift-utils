@@ -15,7 +15,7 @@
     "possibleValues": "True|False"
   },
   "destinationTableAutoCreate": {
-    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in this config.",
+    "description": "If True and target table does not exist create target table with same DDL as source table.  Schema-name and table-name will be altered to make sure to match target table definition in the s3ConfigFile.  At this time dependencies needed for table creation (e.g. in case of a foreign key) need to be present already.",
     "value": "False",
     "possibleValues": "True|False"
   },

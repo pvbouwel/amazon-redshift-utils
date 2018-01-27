@@ -360,7 +360,7 @@
                                 {
                                     "Ref": "AMIForEC2"
                                 },
-                                "_py2.sh'\n"
+                                ".sh'\n"
                             ]
                         ]
                     }

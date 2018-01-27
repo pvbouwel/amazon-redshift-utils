@@ -5,6 +5,7 @@
     "clusterEndpoint": "my-cluster.d7bdmd4addft.eu-west-1.redshift.amazonaws.com",
     "clusterPort": 5439,
     // base 64 encoded password for the user to UNLOAD data as. Use the encryptValue.sh utility to generate this string
+    // This password can be omitted in that case the GetClusterCredentials API gets called to try and retrieve a temporary password
     "connectPwd": "my base 64 encoded kms encrypted password",
     "connectUser": "master",
     "db": "mydb",
@@ -37,6 +38,7 @@
     "clusterEndpoint": "my-other-cluster.d7bdmd4addft.eu-west-1.redshift.amazonaws.com",
     "clusterPort": 5439,
     // base 64 encoded password for the user to COPY data as. Use the encryptValue.sh utility to generate this string
+    // This password can be omitted in that case the GetClusterCredentials API gets called to try and retrieve a temporary password
     "connectPwd": "my base 64 encoded kms encrypted password",
     "connectUser": "master",
     "db": "mydb",
