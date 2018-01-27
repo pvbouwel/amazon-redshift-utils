@@ -3,4 +3,3 @@ SSHKeyForEc2=global
 GitHubUrl=https://github.com/pvbouwel/amazon-redshift-utils.git
 GitHubBranch=pvbouwel-test-rs-unload-copy
 ReportBucket=copy-unload
-StackAutoDelete=Yes

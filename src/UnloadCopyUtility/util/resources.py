@@ -107,7 +107,7 @@ class Resource(object):
             self.msg = msg
 
         def __str__(self):
-            s = super(Resource.NotFound,self).__str__() + '\n\t' + self.msg
+            s = super(Resource.NotFound, self).__str__() + '\n\t' + self.msg
             return s
 
     class CreateSQLNotSet(NotFound):

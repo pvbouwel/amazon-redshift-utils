@@ -62,10 +62,6 @@ class ConfigHelper:
 
 
 class UnloadCopyTool:
-    EXIT_CODE_TABLE_NOT_EXIST_AND_NO_AUTO_CREATE = 500
-    EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_TABLE_NAME_THAN_SOURCE = 599
-    EXIT_CODE_TABLE_NOT_EXIST_AND_DIFFERENT_SCHEMA_NAME_THAN_SOURCE = 599
-
     # noinspection PyDefaultArgument
     def __init__(self,
                  config_file,
@@ -89,7 +85,8 @@ class UnloadCopyTool:
         self.barrier_after_all_resource_pre_tests = NoOperationTask()
         self.task_manager.add_task(self.barrier_after_all_resource_pre_tests)
 
-        # TODO: Check whether both resources oare of type table
+        # TODO: Check whether both resources are of type table if that is not the case then perform other scenario's
+        # For example if both resources are of type schema then create target schema and migrate all tables
         self.add_table_migration(source, destination, global_config_values)
 
         self.task_manager.run()
@@ -130,7 +127,7 @@ class UnloadCopyTool:
                                        dependency_of=self.barrier_after_all_resource_pre_tests,
                                        dependencies=self.barrier_after_all_cluster_pre_tests)
 
-        s3_details = S3Details(self.config_helper, source, encryptionKeyID=encryptionKeyID)
+        s3_details = S3Details(self.config_helper, source, encryption_key_id=encryptionKeyID)
         unload_data = UnloadDataToS3Task(source, s3_details)
         self.task_manager.add_task(unload_data, dependencies=self.barrier_after_all_resource_pre_tests)
 

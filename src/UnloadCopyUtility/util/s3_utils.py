@@ -17,10 +17,10 @@ class S3Helper:
     def get_json_config_as_dict(self, s3_url):
         if s3_url.startswith("s3://"):
             # download the configuration from s3
-            (config_bucket_name, config_key) = S3Helper.tokenise_S3_Path(s3_url)
+            (config_bucket_name, config_key) = S3Helper.tokenize_s3_path(s3_url)
 
             response = self.s3_client.get_object(Bucket=config_bucket_name,
-                                           Key=config_key)  # Throws NoSuchKey exception if no config
+                                                 Key=config_key)  # Throws NoSuchKey exception if no config
             config_contents = response['Body'].read(1024 * 1024).decode('utf-8')  # Read maximum 1MB
 
             config = json.loads(config_contents)
@@ -49,7 +49,7 @@ class S3Helper:
 
     def delete_s3_prefix(self, s3_details):
         print("Cleaning up S3 Data Staging Location %s" % s3_details.dataStagingPath)
-        (stagingBucket, stagingPrefix) = S3Helper.tokenise_S3_Path(s3_details.dataStagingRoot)
+        (stagingBucket, stagingPrefix) = S3Helper.tokenize_s3_path(s3_details.dataStagingRoot)
 
         objects = self.s3_client.list_objects_v2(Bucket=stagingBucket, Prefix=stagingPrefix)
         if objects['KeyCount'] > 0:
@@ -63,7 +63,7 @@ class S3Helper:
             self.delete_list_of_keys_from_bucket(keys_to_delete, stagingBucket)
 
     @staticmethod
-    def tokenise_S3_Path(path):
+    def tokenize_s3_path(path):
         path_elements = path.split('/')
         bucket_name = path_elements[2]
         prefix = "/".join(path_elements[3:])
@@ -101,9 +101,10 @@ class S3Details:
 
     class S3StagingPathMustStartWithS3(Exception):
         def __init__(self, *args):
-            super(S3Details.S3StagingPathMustStartWithS3, self).__init__('s3Staging.path must be a path to S3, so start with s3://', *args)
+            msg = 's3Staging.path must be a path to S3, so start with s3://'
+            super(S3Details.S3StagingPathMustStartWithS3, self).__init__(msg, *args)
 
-    def __init__(self, config_helper, source_table, encryptionKeyID=None):
+    def __init__(self, config_helper, source_table, encryption_key_id=None):
         if 's3Staging' not in config_helper.config:
             raise S3Details.NoS3StagingInformationFoundException()
         else:
@@ -154,10 +155,11 @@ class S3Details:
 
             if use_kms:
                 kms_helper = KMSHelper(config_helper.s3_helper.region_name)
-                self.symmetric_key = kms_helper.generate_base64_encoded_data_key(encryptionKeyID)
+                self.symmetric_key = kms_helper.generate_base64_encoded_data_key(encryption_key_id)
             else:
                 self.symmetric_key = base64.b64encode(KMSHelper.generate_data_key_without_kms())
+            # noinspection PyBroadException
             try:
                 self.symmetric_key = self.symmetric_key.decode('utf-8')
             except:
-                pass # if fails then already string type probably Python2
+                logging.debug('Exception converting string can be ignored, likely Python2 so already a string.')

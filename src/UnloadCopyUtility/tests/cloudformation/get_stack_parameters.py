@@ -26,9 +26,9 @@ class StackParametersBuilder:
                 stack_details = json.load(stack_details_json)
                 outputs = stack_details['Stacks'][0]['Outputs']
                 for output in outputs:
-                    key = output['OutputKey']
-                    value = output['OutputValue']
-                    self.parameters[key] = value
+                    output_key = output['OutputKey']
+                    output_value = output['OutputValue']
+                    self.parameters[output_key] = output_value
 
                 self.parameters['Region'] = stack_details['Stacks'][0]['StackId'].split(':')[3]
             self.parameters_fetched_from_stack_details = True
@@ -37,15 +37,15 @@ class StackParametersBuilder:
         if not self.kms_encrypted_password_fetched_from_password_kms_txt:
             password_kms_txt = '{resource_dir}/PASSWORD_KMS.txt'.format(resource_dir=self.resource_dir)
             with open(password_kms_txt, 'r') as kms_encrypted_password_file:
-                self.parameters['KMSEncryptedPassword']=kms_encrypted_password_file.readline()
+                self.parameters['KMSEncryptedPassword'] = kms_encrypted_password_file.readline()
             self.kms_encrypted_password_fetched_from_password_kms_txt = True
 
     def enrich_s3_parameters(self):
         if not self.are_s3_parameters_enriched:
-            for key in list(self.parameters):
-                if key.startswith('S3') and key.endswith('BucketArn'):
-                    bucket_arn = self.parameters[key]
-                    new_key = key[2:-3]
+            for parameter_key in list(self.parameters):
+                if parameter_key.startswith('S3') and parameter_key.endswith('BucketArn'):
+                    bucket_arn = self.parameters[parameter_key]
+                    new_key = parameter_key[2:-3]
                     self.parameters[new_key] = bucket_arn.replace('arn:aws:s3:::', '')
             self.are_s3_parameters_enriched = True
 
@@ -58,11 +58,11 @@ class StackParametersBuilder:
                     raise Exception('Could not get details for {type} cluster'.format(type=cluster))
                 for parameter in ['DBName', 'MasterUsername', 'Endpoint.Address', 'Endpoint.Port']:
                     parameter_parts = parameter.split('.')
-                    value = cluster_describe_response['Clusters'][0]
+                    parameter_value = cluster_describe_response['Clusters'][0]
                     for parameter_part in parameter_parts:
-                        value = value.get(parameter_part)
+                        parameter_value = parameter_value.get(parameter_part)
                     parameter_parts.insert(0, cluster)
-                    self.parameters[''.join(parameter_parts)] = str(value)
+                    self.parameters[''.join(parameter_parts)] = str(parameter_value)
             self.are_cluster_parameters_enriched = True
 
     def get_parameters_dict(self):

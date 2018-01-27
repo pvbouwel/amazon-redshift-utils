@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
+import sys
 import logging
+import pg
 import re
 from util.sql.sql_text_helpers import GET_SAFE_LOG_STRING
 import pytz
@@ -8,7 +10,7 @@ import pytz
 import boto3
 from pg import connect
 
-options = "keepalives=1 keepalives_idle=200 keepalives_interval=200 keepalives_count=6"
+options = "keepalives=1 keepalives_idle=200 keepalives_interval=200 keepalives_count=6 connect_timeout=10"
 
 set_timeout_stmt = "set statement_timeout = 1200000"
 
@@ -207,17 +209,26 @@ class RedshiftCluster:
         return self.get_element_from_cluster_endpoint('cluster_identifier')
 
     def _conn_to_rs(self, opt=options, timeout=set_timeout_stmt, database=None):
-        rs_conn = None
-        if not hasattr(self, '_conn') or self._conn is None:
-            rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
-                host=self.get_host(),
-                port=self.get_port(),
-                db=self.get_db(),
-                password=self.get_password(),  # First fetch the password because temporary password updates user!
-                user=self.get_user(),
-                opt=opt)
-            logging.debug(GET_SAFE_LOG_STRING(rs_conn_string))
+        rs_conn_string = "host={host} port={port} dbname={db} user={user} password={password} {opt}".format(
+            host=self.get_host(),
+            port=self.get_port(),
+            db=self.get_db(),
+            password=self.get_password(),  # First fetch the password because temporary password updates user!
+            user=self.get_user(),
+            opt=opt)
+        logging.debug(GET_SAFE_LOG_STRING(rs_conn_string))
+        try:
+            # noinspection PyArgumentList
             rs_conn = connect(rs_conn_string)
+        except pg.InternalError as ie:
+            if hasattr(ie, 'args') and len(ie.args) > 0 \
+                    and ('Operation timed out' in ie.args[0] or 'timeout expired' in ie.args[0]):
+                msg = 'Connection timeout when connecting to {h}:{p}.\n'
+                msg += 'Make sure that firewalls and security groups allow connections.'
+                logging.fatal(msg.format(h=self.get_host(), p=self.get_port()))
+            else:
+                logging.fatal('Internal error encountered when trying to connect: {ie}'.format(ie=ie))
+            raise sys.exc_info()[0](sys.exc_info()[1]).with_traceback(sys.exc_info()[2])
         if self._configured_timeout is not None and not self._configured_timeout == timeout:
             rs_conn.query(timeout)
             self.database_timeouts[database][opt] = timeout

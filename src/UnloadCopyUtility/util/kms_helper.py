@@ -25,6 +25,7 @@ class KMSHelper:
         else:
             # Legacy code to generate random value
             try:
+                # noinspection PyUnresolvedReferences
                 from Crypto import Random
             except ImportError:
                 pycrypto_explanation = """

@@ -1,12 +1,12 @@
 
 
 class ChildObject:
-    def __init__(self, dependencies=[]):
+    def __init__(self, dependencies=None):
         """
 
         :param dependencies: A list of Resource objects
         """
-        self.dependencies = dependencies
+        self.dependencies = dependencies or list()
 
     def are_dependencies_present(self):
         all_present = True
